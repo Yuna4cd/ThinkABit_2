@@ -1,4 +1,9 @@
+import io
+import zipfile
+
 from fastapi.testclient import TestClient
+
+from app.core.config import MAX_FILE_SIZE_BYTES
 
 
 def assert_error_schema(payload: dict) -> None:
@@ -78,6 +83,92 @@ def test_upload_unsafe_filename_returns_error_schema(client: TestClient) -> None
     payload = response.json()
     assert_error_schema(payload)
     assert payload["error"]["code"] == "UNSAFE_FILENAME"
+
+
+def test_upload_mime_extension_mismatch_returns_error_schema(client: TestClient) -> None:
+    files = {"file": ("sample.csv", b"col1,col2\n1,2\n", "application/json")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 415
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "MIME_EXTENSION_MISMATCH"
+
+
+def test_upload_oversized_file_returns_error_schema(client: TestClient) -> None:
+    oversized_content = b"a" * (MAX_FILE_SIZE_BYTES + 1)
+    files = {"file": ("sample.csv", oversized_content, "text/csv")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 413
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "FILE_TOO_LARGE"
+
+
+def test_upload_spoofed_xlsx_content_returns_error_schema(client: TestClient) -> None:
+    files = {
+        "file": (
+            "sample.xlsx",
+            b"this is plain text not a zip-based xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 415
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "MIME_EXTENSION_MISMATCH"
+
+
+def test_upload_fake_zip_xlsx_returns_error_schema(client: TestClient) -> None:
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as archive:
+        archive.writestr("not_excel.txt", "hello")
+    files = {
+        "file": (
+            "sample.xlsx",
+            stream.getvalue(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 415
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "MIME_EXTENSION_MISMATCH"
+
+
+def test_upload_empty_file_returns_error_schema(client: TestClient) -> None:
+    files = {"file": ("sample.csv", b"", "text/csv")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "EMPTY_FILE"
+
+
+def test_upload_control_char_filename_returns_error_schema(client: TestClient) -> None:
+    files = {"file": ("bad\x1fname.csv", b"col1,col2\n1,2\n", "text/csv")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "UNSAFE_FILENAME"
+
+
+def test_upload_missing_mime_type_returns_error_schema(client: TestClient) -> None:
+    files = {"file": ("sample.csv", b"col1,col2\n1,2\n", "")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 415
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "MIME_TYPE_NOT_ALLOWED"
 
 
 def test_upload_missing_file_returns_error_schema(client: TestClient) -> None:
