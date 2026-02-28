@@ -1,0 +1,549 @@
+openapi: 3.0.3
+info:
+  title: ThinkABit File Upload API
+  version: 1.0.0
+  description: >
+    Sprint 1 API contract for dataset upload, validation, parsing, and preview.
+    Storage backend is S3-compatible (MinIO now, AWS S3 later).
+servers:
+  - url: /api/v1
+    description: API v1 base path
+tags:
+  - name: Upload
+  - name: Datasets
+paths:
+  /upload:
+    post:
+      tags:
+        - Upload
+      summary: Upload and parse dataset
+      description: >
+        Accepts multipart upload for csv/xlsx/json, validates file safety and type,
+        parses into canonical tabular format, stores raw object, and returns schema
+        plus preview rows.
+      operationId: uploadDataset
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+      responses:
+        '201':
+          description: Upload accepted and parsed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+              examples:
+                success:
+                  value:
+                    dataset_id: ds_01JX5F8QH9P5Y7M3S4V8N2K6TQ
+                    status: ready
+                    session_id: sess_abc123
+                    file_meta:
+                      original_filename: sales_2025.csv
+                      extension: csv
+                      mime_type: text/csv
+                      size_bytes: 184321
+                    shape:
+                      rows: 4821
+                      columns: 9
+                    schema:
+                      - name: order_id
+                        dtype: string
+                        null_count: 0
+                      - name: order_date
+                        dtype: datetime
+                        null_count: 2
+                      - name: total_amount
+                        dtype: float
+                        null_count: 13
+                    preview:
+                      - order_id: A001
+                        order_date: '2025-01-02T00:00:00Z'
+                        total_amount: 31.25
+                    missing_summary:
+                      rows_with_missing: 49
+                      total_missing_cells: 77
+                    storage:
+                      provider: s3-compatible
+                      bucket: thinkabit-raw
+                      object_key: raw/2026/02/28/ds_01JX5F8QH9P5Y7M3S4V8N2K6TQ/sales_2025.csv
+                    warnings: []
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '408':
+          $ref: '#/components/responses/ParseTimeoutError'
+        '413':
+          $ref: '#/components/responses/FileTooLargeError'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaError'
+        '422':
+          $ref: '#/components/responses/UnprocessableDataError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      x-constraints:
+        max_file_size_bytes: 26214400
+        parse_timeout_seconds: 30
+        row_cap: 200000
+  /datasets/{dataset_id}:
+    get:
+      tags:
+        - Datasets
+      summary: Get dataset metadata
+      operationId: getDataset
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '200':
+          description: Dataset metadata returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetMetadataResponse'
+        '404':
+          $ref: '#/components/responses/DatasetNotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /datasets/{dataset_id}/schema:
+    get:
+      tags:
+        - Datasets
+      summary: Get inferred dataset schema
+      operationId: getDatasetSchema
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '200':
+          description: Dataset schema returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetSchemaResponse'
+        '404':
+          $ref: '#/components/responses/DatasetNotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /datasets/{dataset_id}/preview:
+    get:
+      tags:
+        - Datasets
+      summary: Get preview rows
+      operationId: getDatasetPreview
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+        - $ref: '#/components/parameters/PreviewLimit'
+        - $ref: '#/components/parameters/PreviewOffset'
+      responses:
+        '200':
+          description: Dataset preview returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetPreviewResponse'
+        '404':
+          $ref: '#/components/responses/DatasetNotFoundError'
+        '422':
+          $ref: '#/components/responses/UnprocessableDataError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    DatasetId:
+      name: dataset_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      description: Dataset identifier (for example, ds_01JX5F8QH9P5Y7M3S4V8N2K6TQ).
+    PreviewLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 100
+      description: Number of preview rows to return.
+    PreviewOffset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Offset into preview rows.
+  responses:
+    BadRequestError:
+      description: Request shape or field values are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidRequest:
+              value:
+                error:
+                  code: INVALID_REQUEST
+                  message: preview_rows must be between 1 and 200.
+                  details:
+                    field: preview_rows
+                  request_id: req_2S9M8P
+    ParseTimeoutError:
+      description: Parsing exceeded configured timeout.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            parseTimeout:
+              value:
+                error:
+                  code: PARSE_TIMEOUT
+                  message: Parsing exceeded 30 seconds timeout.
+                  details: {}
+                  request_id: req_A1B2C3
+    FileTooLargeError:
+      description: Uploaded file exceeds max allowed size.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            tooLarge:
+              value:
+                error:
+                  code: FILE_TOO_LARGE
+                  message: File size exceeds 25MB limit.
+                  details:
+                    max_bytes: 26214400
+                  request_id: req_9Y8X7W
+    UnsupportedMediaError:
+      description: File extension or MIME type is not allowed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unsupportedType:
+              value:
+                error:
+                  code: UNSUPPORTED_FILE_TYPE
+                  message: Only csv, xlsx, json are allowed.
+                  details:
+                    allowed_extensions:
+                      - csv
+                      - xlsx
+                      - json
+                  request_id: req_6M5N4B
+    UnprocessableDataError:
+      description: File is syntactically valid but cannot be processed as a dataset.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            parseFailed:
+              value:
+                error:
+                  code: PARSE_FAILED
+                  message: Unable to parse JSON into tabular structure.
+                  details: {}
+                  request_id: req_Q2W3E4
+    DatasetNotFoundError:
+      description: Dataset ID does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                error:
+                  code: DATASET_NOT_FOUND
+                  message: Dataset not found.
+                  details:
+                    dataset_id: ds_missing
+                  request_id: req_Z7X6C5
+    InternalServerError:
+      description: Internal system failure.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            storageError:
+              value:
+                error:
+                  code: STORAGE_ERROR
+                  message: Failed to write object to storage backend.
+                  details: {}
+                  request_id: req_1A2S3D
+  schemas:
+    UploadRequest:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Input dataset file. Allowed extensions are csv, xlsx, json.
+        session_id:
+          type: string
+          maxLength: 128
+          description: Optional anonymous session identifier.
+        source:
+          type: string
+          enum:
+            - user_upload
+            - sample
+          default: user_upload
+        preview_rows:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 100
+    UploadResponse:
+      type: object
+      required:
+        - dataset_id
+        - status
+        - file_meta
+        - shape
+        - schema
+        - preview
+        - missing_summary
+        - storage
+        - warnings
+      properties:
+        dataset_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/DatasetStatus'
+        session_id:
+          type: string
+          nullable: true
+        file_meta:
+          $ref: '#/components/schemas/FileMeta'
+        shape:
+          $ref: '#/components/schemas/Shape'
+        schema:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnSchema'
+        preview:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewRow'
+        missing_summary:
+          $ref: '#/components/schemas/MissingSummary'
+        storage:
+          $ref: '#/components/schemas/StorageRef'
+        warnings:
+          type: array
+          items:
+            type: string
+    DatasetMetadataResponse:
+      type: object
+      required:
+        - dataset_id
+        - status
+        - file_meta
+        - shape
+        - created_at
+        - updated_at
+      properties:
+        dataset_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/DatasetStatus'
+        session_id:
+          type: string
+          nullable: true
+        file_meta:
+          $ref: '#/components/schemas/FileMeta'
+        shape:
+          $ref: '#/components/schemas/Shape'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DatasetSchemaResponse:
+      type: object
+      required:
+        - dataset_id
+        - schema
+      properties:
+        dataset_id:
+          type: string
+        schema:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnSchema'
+    DatasetPreviewResponse:
+      type: object
+      required:
+        - dataset_id
+        - limit
+        - offset
+        - rows
+      properties:
+        dataset_id:
+          type: string
+        limit:
+          type: integer
+        offset:
+          type: integer
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewRow'
+    DatasetStatus:
+      type: string
+      enum:
+        - uploaded
+        - ready
+        - failed
+    FileMeta:
+      type: object
+      required:
+        - original_filename
+        - extension
+        - mime_type
+        - size_bytes
+      properties:
+        original_filename:
+          type: string
+        extension:
+          type: string
+          enum:
+            - csv
+            - xlsx
+            - json
+        mime_type:
+          type: string
+          enum:
+            - text/csv
+            - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+            - application/json
+        size_bytes:
+          type: integer
+          minimum: 0
+          maximum: 26214400
+    Shape:
+      type: object
+      required:
+        - rows
+        - columns
+      properties:
+        rows:
+          type: integer
+          minimum: 0
+        columns:
+          type: integer
+          minimum: 0
+    ColumnSchema:
+      type: object
+      required:
+        - name
+        - dtype
+        - null_count
+      properties:
+        name:
+          type: string
+        dtype:
+          $ref: '#/components/schemas/DataType'
+        null_count:
+          type: integer
+          minimum: 0
+    DataType:
+      type: string
+      enum:
+        - string
+        - int
+        - float
+        - bool
+        - datetime
+        - unknown
+    PreviewRow:
+      type: object
+      additionalProperties: true
+      description: One row from preview data as key-value pairs.
+    MissingSummary:
+      type: object
+      required:
+        - rows_with_missing
+        - total_missing_cells
+      properties:
+        rows_with_missing:
+          type: integer
+          minimum: 0
+        total_missing_cells:
+          type: integer
+          minimum: 0
+    StorageRef:
+      type: object
+      required:
+        - provider
+        - bucket
+        - object_key
+      properties:
+        provider:
+          type: string
+          enum:
+            - s3-compatible
+        bucket:
+          type: string
+        object_key:
+          type: string
+          description: >
+            Object key format:
+            raw/{yyyy}/{mm}/{dd}/{dataset_id}/{sanitized_filename}
+            or canonical/{yyyy}/{mm}/{dd}/{dataset_id}/dataset.parquet
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+    ErrorBody:
+      type: object
+      required:
+        - code
+        - message
+        - details
+        - request_id
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_MULTIPART
+            - INVALID_REQUEST
+            - FILE_TOO_LARGE
+            - UNSUPPORTED_FILE_TYPE
+            - MIME_TYPE_NOT_ALLOWED
+            - MIME_EXTENSION_MISMATCH
+            - UNSAFE_FILENAME
+            - EMPTY_FILE
+            - ROW_LIMIT_EXCEEDED
+            - PARSE_TIMEOUT
+            - PARSE_FAILED
+            - DATASET_NOT_FOUND
+            - STORAGE_ERROR
+            - METASTORE_ERROR
+            - INTERNAL_ERROR
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+        request_id:
+          type: string
