@@ -51,6 +51,14 @@ Owner: `backend (YongShen)`
 - `string`, `int`, `float`, `bool`, `datetime`, `unknown`
 - Missing values are normalized to `null`
 
+## 4.1) Task 4 Parsing Assumptions (Confirmed)
+
+- JSON supported shapes for Sprint 1:
+- top-level `array of objects`
+- top-level `object of arrays`
+- Excel parsing strategy: read first worksheet only (`sheet_name=0`)
+- Datetime values in preview are serialized as ISO-8601 strings
+
 ## 5) API Endpoints
 
 ### 5.1 POST `/api/v1/upload`
