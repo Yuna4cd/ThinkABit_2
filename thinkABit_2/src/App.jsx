@@ -15,6 +15,7 @@ function App() {
         <Route path='/' element={<HomePage />} />
         <Route path='/upload' element={<UploadPage />} />
         <Route path='/documents' element={<DocumentsPage />} />
+        <Route path='/visualization' element={<VisualizationPage />} />
       </Routes>
     </div>
   )

@@ -1,23 +1,19 @@
-.upload-container {
+.viz-container {
     padding: 20px;
     position: relative;
     min-height: 100vh;
 }
 
-.alert-box {
-    background-color: #ff6b6b;
-    color: white;
-    padding: 10px 15px;
-    border-radius: 8px;
-    width: fit-content;
-    margin-left: auto;
+.export-btn-container {
+    display: flex;
+    justify-content: flex-end;
     margin-bottom: 10px;
 }
 
-.preview-box {
+.chart-area {
     border: 1px solid #ccc;
     border-radius: 8px;
-    height: 250px;
+    height: 300px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -25,15 +21,31 @@
     color: #888;
 }
 
-.upload-box {
+.chart-toggle {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.active-chart {
+    background-color: #555;
+    color: white;
+}
+
+.upload-btn-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+.dataset-placeholder {
     border: 1px solid #ccc;
     border-radius: 8px;
-    height: 120px;
+    height: 150px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #888;
-    cursor: pointer;
 }
 
 .chatbot-icon {
