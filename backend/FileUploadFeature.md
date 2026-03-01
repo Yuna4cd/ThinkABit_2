@@ -1,4 +1,4 @@
-# File Upload API Contract (Sprint 1)
+# File Upload API Contract (Sprint 1) + Roadmap (Sprint 2-3)
 
 Version: `v1`  
 Status: `reviewed`  
@@ -9,7 +9,7 @@ Owner: `backend (YongShen)`
 - Supported file types: `csv`, `xlsx`, `json`
 - Not supported: `pdf`
 - Backend stack: `Python + FastAPI + pandas`
-- Metastore: `SQLite` (future migration target: `Supabase/Postgres`)
+- Metastore: `Supabase (PostgreSQL)`
 - Object storage: `MinIO` now, S3-compatible contract by design
 - Upload size limit: `25 MB`
 - Upload response includes: `dataset_id + schema + preview`
@@ -18,6 +18,7 @@ Owner: `backend (YongShen)`
 ## 2) Base API Rules
 
 - Base path: `/api/v1`
+- Resource naming: use plural resources (`/datasets/{dataset_id}`), not `/dataset/{id}`
 - Content type:
 - Upload endpoint uses `multipart/form-data`
 - All non-upload responses use `application/json`
@@ -210,6 +211,19 @@ Success `200`:
 }
 ```
 
+### 5.5 DELETE `/api/v1/datasets/{dataset_id}`
+
+Deletes dataset metadata from Supabase and best-effort deletes raw object from MinIO.
+
+Success `204`:
+
+- empty body
+
+Error examples:
+
+- `404` dataset not found
+- `500` storage/metastore/internal failure
+
 ## 6) Unified Error Schema
 
 Every non-2xx response must follow:
@@ -246,7 +260,7 @@ Error code catalog:
 - `PARSE_FAILED` -> parser error for valid type (`422`)
 - `DATASET_NOT_FOUND` -> unknown `dataset_id` (`404`)
 - `STORAGE_ERROR` -> MinIO/S3 write-read failure (`500`)
-- `METASTORE_ERROR` -> SQLite operation failure (`500`)
+- `METASTORE_ERROR` -> Supabase/PostgreSQL operation failure (`500`)
 - `INTERNAL_ERROR` -> fallback server error (`500`)
 
 ## 7) Storage Contract (MinIO now, S3 later)
@@ -264,27 +278,29 @@ Storage contract is strictly S3-compatible to keep migration to AWS S3 frictionl
 - `object_key`
 - direct MinIO endpoint is internal and not exposed in API response
 
-## 8) Metastore Fields (Contract-level)
+## 8) Metastore Fields (Supabase/PostgreSQL Contract-level)
 
 `datasets` table contract:
 
-- `dataset_id` (string, pk)
-- `session_id` (string, nullable)
-- `status` (enum: `uploaded | ready | failed`)
-- `original_filename` (string)
-- `extension` (string)
-- `mime_type` (string)
-- `size_bytes` (integer)
-- `row_count` (integer, nullable)
-- `column_count` (integer, nullable)
-- `storage_bucket_raw` (string)
-- `storage_key_raw` (string)
-- `storage_bucket_canonical` (string, nullable)
-- `storage_key_canonical` (string, nullable)
-- `error_code` (string, nullable)
-- `error_message` (string, nullable)
-- `created_at` (datetime UTC)
-- `updated_at` (datetime UTC)
+- `dataset_id` (`text`, pk)
+- `session_id` (`text`, nullable)
+- `parse_status` (enum-like text: `uploaded | parsing | ready | failed`)
+- `original_filename` (`text`)
+- `extension` (`text`)
+- `mime_type` (`text`)
+- `size_bytes` (`bigint`)
+- `row_count` (`integer`, nullable)
+- `column_count` (`integer`, nullable)
+- `storage_bucket_raw` (`text`)
+- `storage_key_raw` (`text`)
+- `storage_bucket_canonical` (`text`, nullable)
+- `storage_key_canonical` (`text`, nullable)
+- `error_code` (`text`, nullable)
+- `error_message` (`text`, nullable)
+- `created_at` (`timestamptz`, UTC)
+- `updated_at` (`timestamptz`, UTC)
+- Access pattern: backend uses Supabase service role key for metastore writes/reads.
+- API response field `status` is mapped from `parse_status`.
 
 ## 9) Non-goals in Sprint 1
 
@@ -293,3 +309,45 @@ Storage contract is strictly S3-compatible to keep migration to AWS S3 frictionl
 - Async job queue for parsing
 - Multi-file batch upload
 - PDF ingestion
+
+## 10) Prioritized Task Backlog (All Included)
+
+| Priority | Task | Est. Implementation Time (Hours) |
+| --- | --- | ---: |
+| P0 | Supabase - metadata table init | 6 |
+| P0 | MinIO - `put_object(file_bytes, key, content_type)` | 5 |
+| P0 | Supabase - record insert | 5 |
+| P0 | Implement `GET /api/v1/datasets/{dataset_id}` | 4 |
+| P0 | Implement `GET /api/v1/datasets/{dataset_id}/schema` | 4 |
+| P0 | Implement `GET /api/v1/datasets/{dataset_id}/preview` | 6 |
+| P0 | Implement `DELETE /api/v1/datasets/{dataset_id}` | 6 |
+| P0 | MinIO - `delete_object(key)` | 4 |
+| P0 | Supabase - record delete | 4 |
+| P0 | Integration test for MinIO -> Metastore | 8 |
+| P1 | MinIO - `get_object(key)` | 4 |
+| P1 | Background async parse pipeline (`uploaded -> parsing -> ready/failed`) | 14 |
+| P2 | Advanced content safety checks (zip-bomb / malicious payload patterns) | 12 |
+| P2 | Soft-delete and periodic orphan cleanup jobs | 14 |
+
+Total estimated implementation time: `96 hours`.
+
+## 11) Sprint Plan (20h each, by priority)
+
+| Sprint | Scope | Planned Hours |
+| --- | --- | ---: |
+| Sprint 2 | Supabase table init (6) + MinIO put (5) + Supabase insert (5) + `GET /datasets/{dataset_id}` (4) | 20 |
+| Sprint 3 | `GET /datasets/{dataset_id}/schema` (4) + `GET /datasets/{dataset_id}/preview` (6) + `DELETE /datasets/{dataset_id}` (6) + Supabase delete (4) | 20 |
+| Sprint 4 | MinIO delete (4) + MinIO get (4) + Integration test MinIO->Metastore (8) + stabilization buffer (4) | 20 |
+| Sprint 5 | Async parse pipeline (14) + Content safety checks phase 1 (6) | 20 |
+| Sprint 6 | Content safety checks phase 2 (6) + Soft-delete + orphan cleanup jobs (14) | 20 |
+
+## 12) Acceptance Criteria (Summary)
+
+- All endpoints return responses that match `backend/openapi/upload-api.v1.yaml`.
+- All error responses follow the unified error schema in this document.
+- Metastore writes/deletes are persisted in Supabase with deterministic behavior.
+- MinIO operations (`put/get/delete`) have explicit success and failure handling.
+- Integration test validates end-to-end flow: upload -> MinIO -> Supabase -> query -> delete.
+- Async pipeline persists and exposes valid state transitions: `uploaded -> parsing -> ready/failed`.
+- Security checks block malicious payload patterns without breaking valid uploads.
+- Soft-delete and cleanup jobs are repeatable and produce observable run logs.

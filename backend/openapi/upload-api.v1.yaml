@@ -5,6 +5,7 @@ info:
   description: >
     Sprint 1 API contract for dataset upload, validation, parsing, and preview.
     Storage backend is S3-compatible (MinIO now, AWS S3 later).
+    Metastore backend is Supabase (PostgreSQL).
 servers:
   - url: /api/v1
     description: API v1 base path
@@ -102,6 +103,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DatasetMetadataResponse'
+        '404':
+          $ref: '#/components/responses/DatasetNotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Datasets
+      summary: Delete dataset
+      description: >
+        Deletes dataset metadata from Supabase and best-effort deletes raw object
+        from MinIO.
+      operationId: deleteDataset
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '204':
+          description: Dataset deleted successfully. Response body is empty.
         '404':
           $ref: '#/components/responses/DatasetNotFoundError'
         '500':
@@ -407,8 +425,10 @@ components:
             $ref: '#/components/schemas/PreviewRow'
     DatasetStatus:
       type: string
+      description: API status mapped from metastore field parse_status.
       enum:
         - uploaded
+        - parsing
         - ready
         - failed
     FileMeta:
