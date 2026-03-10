@@ -3,7 +3,8 @@ nav {
     align-items: center;
     justify-content: space-between;
     padding: 10px 20px;
-    background-color: #333;
+    background: linear-gradient(90deg, var(--hokie-primary), var(--hokie-secondary));
+    font-size: large;
     color: white;
 }
 
@@ -15,8 +16,9 @@ nav a {
     margin: 0 5px;
 }
 
-nav a.active {
-    background-color: #555;
+.logo-img {
+    width: clamp(90px, 8vw, 150px);
+    height: auto;
 }
 
 .logo-link {
@@ -24,3 +26,65 @@ nav a.active {
     text-decoration: none;
     font-weight: bold;
 }
+
+/* navigation buttons */
+.nav-btn {
+    display: flex;
+    align-self: center;
+}
+
+.nav-btn a {
+    display: inline-flex;
+    position: relative;
+    align-items: center;
+    gap: 10px;
+    padding: 5px;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nav-btn a:hover {
+    transform: translateY(-3px);
+}
+
+.nav-btn a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -5px;
+    width: 0%;
+    height: 3px;
+    background: white;
+    transition: width 0.25s ease-in-out;
+}
+
+/* underlines */
+.nav-btn a:hover::after {
+    width: 100%;
+}
+.nav-btn a.active::after {
+    width: 100%;
+}
+
+.nav-btn i {
+    font-size: 26px;
+}
+
+/* user-section */
+.user-section {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    cursor: pointer;
+}
+
+.avator {
+    width: 42px;
+    height: 42px;
+    border: 2px solid white;
+    border-radius: 50%;
+}
+
+
