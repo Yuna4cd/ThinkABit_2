@@ -39,6 +39,7 @@ Migration SQL file:
 Verification SQL file:
 
 - `backend/supabase/verification/verify_datasets_metadata_mvp.sql`
+- `backend/supabase/migrations/extend_datasets_metadata_for_dataset_get.sql` (run before `GET /api/v1/datasets/{dataset_id}` work)
 
 Manual steps (Supabase):
 

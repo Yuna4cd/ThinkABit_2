@@ -132,10 +132,13 @@ class UploadService:
                     DatasetInsertRecord(
                         dataset_id=dataset_id,
                         parse_status="ready",
+                        session_id=session_id,
                         original_filename=file.filename or "unknown",
                         extension=extension,
                         mime_type=file.content_type or "application/octet-stream",
                         size_bytes=file_size,
+                        row_count=int(dataframe.shape[0]),
+                        column_count=int(dataframe.shape[1]),
                         storage_key_raw=object_key,
                     )
                 )
