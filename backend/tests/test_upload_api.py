@@ -1,9 +1,11 @@
 import io
 import zipfile
+from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
 from app.core.config import MAX_FILE_SIZE_BYTES
+from app.api.v1 import upload as upload_module
 
 
 def build_valid_xlsx_bytes() -> bytes:
@@ -264,6 +266,44 @@ def test_upload_non_tabular_json_returns_parse_failed(client: TestClient) -> Non
     payload = response.json()
     assert_error_schema(payload)
     assert payload["error"]["code"] == "PARSE_FAILED"
+
+
+def test_upload_with_storage_enabled_calls_put_object(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module.upload_service, "storage_enabled", True)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    payload_bytes = b"col1,col2\n1,2\n"
+    files = {"file": ("sample.csv", payload_bytes, "text/csv")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 201
+    mock_storage.put_object.assert_called_once()
+    call_kwargs = mock_storage.put_object.call_args.kwargs
+    assert call_kwargs["file_bytes"] == payload_bytes
+    assert call_kwargs["content_type"] == "text/csv"
+    assert "raw/" in call_kwargs["key"]
+
+
+def test_upload_storage_error_returns_storage_error(
+    client: TestClient, monkeypatch
+) -> None:
+    failing_storage = Mock()
+    failing_storage.put_object.side_effect = RuntimeError("simulated storage failure")
+    monkeypatch.setattr(upload_module.upload_service, "storage_enabled", True)
+    monkeypatch.setattr(
+        upload_module.upload_service, "storage_service", failing_storage
+    )
+
+    files = {"file": ("sample.csv", b"col1,col2\n1,2\n", "text/csv")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "STORAGE_ERROR"
 
 
 def test_upload_sniffable_broken_xlsx_returns_parse_failed(client: TestClient) -> None:

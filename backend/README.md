@@ -3,7 +3,19 @@
 ## Run locally
 
 1. Create virtual environment and install dependencies from `requirements.txt`.
-2. Start API:
+2. (Optional but recommended) Start local MinIO:
+
+```bash
+docker compose -f backend/docker-compose.minio.yml up -d
+```
+
+3. Copy env template and adjust values if needed:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+4. Start API:
 
 ```bash
 uvicorn app.main:app --reload --app-dir backend
@@ -43,3 +55,9 @@ Manual settings:
 - For later app integration (Task 8/9), configure:
   - `SUPABASE_URL`
   - `SUPABASE_SERVICE_ROLE_KEY`
+
+## MinIO Upload Notes
+
+- Upload to object storage is controlled by `MINIO_UPLOAD_ENABLED`.
+- `MINIO_UPLOAD_ENABLED=true` enables real `put_object` writes.
+- Default local endpoint is `http://localhost:19000` and bucket is `thinkabit-raw`.
