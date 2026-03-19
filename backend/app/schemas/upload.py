@@ -1,9 +1,10 @@
 from typing import Any, Literal
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-DatasetStatus = Literal["uploaded", "ready", "failed"]
+DatasetStatus = Literal["uploaded", "parsing", "ready", "failed"]
 SourceType = Literal["user_upload", "sample"]
 DataType = Literal["string", "int", "float", "bool", "datetime", "unknown"]
 
@@ -50,6 +51,16 @@ class UploadResponse(BaseModel):
     missing_summary: MissingSummary
     storage: StorageRef
     warnings: list[str]
+
+
+class DatasetMetadataResponse(BaseModel):
+    dataset_id: str
+    status: DatasetStatus
+    session_id: str | None = None
+    file_meta: FileMeta
+    shape: Shape
+    created_at: datetime
+    updated_at: datetime
 
 
 class ErrorBody(BaseModel):
