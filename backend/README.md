@@ -55,9 +55,12 @@ Manual settings:
 - For later app integration (Task 8/9), configure:
   - `SUPABASE_URL`
   - `SUPABASE_SERVICE_ROLE_KEY`
+  - `DATABASE_URL`
+  - `METASTORE_INSERT_ENABLED`
 
 ## MinIO Upload Notes
 
 - Upload to object storage is controlled by `MINIO_UPLOAD_ENABLED`.
 - `MINIO_UPLOAD_ENABLED=true` enables real `put_object` writes.
 - Default local endpoint is `http://localhost:19000` and bucket is `thinkabit-raw`.
+- Metadata insert to Supabase Postgres is controlled by `METASTORE_INSERT_ENABLED`.

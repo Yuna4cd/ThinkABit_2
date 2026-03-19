@@ -1,5 +1,9 @@
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
@@ -32,3 +36,6 @@ MINIO_RAW_BUCKET = os.getenv("MINIO_RAW_BUCKET", "thinkabit-raw")
 MINIO_SECURE = _env_bool("MINIO_SECURE", default=False)
 MINIO_AUTO_CREATE_BUCKET = _env_bool("MINIO_AUTO_CREATE_BUCKET", default=True)
 MINIO_UPLOAD_ENABLED = _env_bool("MINIO_UPLOAD_ENABLED", default=True)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+METASTORE_INSERT_ENABLED = _env_bool("METASTORE_INSERT_ENABLED", default=True)

@@ -12,6 +12,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 # Keep tests hermetic: do not require a running MinIO instance.
 os.environ.setdefault("MINIO_UPLOAD_ENABLED", "false")
+os.environ.setdefault("METASTORE_INSERT_ENABLED", "false")
 
 from app.main import app  # noqa: E402
 

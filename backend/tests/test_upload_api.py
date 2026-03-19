@@ -306,6 +306,46 @@ def test_upload_storage_error_returns_storage_error(
     assert payload["error"]["code"] == "STORAGE_ERROR"
 
 
+def test_upload_with_metastore_enabled_calls_insert(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    monkeypatch.setattr(upload_module.upload_service, "storage_enabled", False)
+    monkeypatch.setattr(upload_module.upload_service, "metastore_enabled", True)
+    monkeypatch.setattr(upload_module.upload_service, "metastore_service", mock_metastore)
+
+    files = {"file": ("sample.csv", b"col1,col2\n1,2\n", "text/csv")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 201
+    mock_metastore.insert_dataset_metadata.assert_called_once()
+    record = mock_metastore.insert_dataset_metadata.call_args.args[0]
+    assert record.parse_status == "ready"
+    assert record.original_filename == "sample.csv"
+    assert record.size_bytes == len(b"col1,col2\n1,2\n")
+    assert "raw/" in record.storage_key_raw
+
+
+def test_upload_metastore_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    failing_metastore = Mock()
+    failing_metastore.insert_dataset_metadata.side_effect = RuntimeError(
+        "simulated metastore failure"
+    )
+    monkeypatch.setattr(upload_module.upload_service, "storage_enabled", False)
+    monkeypatch.setattr(upload_module.upload_service, "metastore_enabled", True)
+    monkeypatch.setattr(upload_module.upload_service, "metastore_service", failing_metastore)
+
+    files = {"file": ("sample.csv", b"col1,col2\n1,2\n", "text/csv")}
+    response = client.post("/api/v1/upload", files=files)
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
 def test_upload_sniffable_broken_xlsx_returns_parse_failed(client: TestClient) -> None:
     files = {
         "file": (

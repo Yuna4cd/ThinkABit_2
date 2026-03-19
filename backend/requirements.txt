@@ -6,3 +6,5 @@ pandas==2.3.2
 pytest==8.4.2
 httpx
 boto3==1.39.14
+python-dotenv==1.2.1
+psycopg2==2.9.11

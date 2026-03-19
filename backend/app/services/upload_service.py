@@ -18,6 +18,8 @@ from pandas.api.types import (
 )
 
 from app.core.config import (
+    DATABASE_URL,
+    METASTORE_INSERT_ENABLED,
     MINIO_ACCESS_KEY,
     MINIO_AUTO_CREATE_BUCKET,
     MINIO_ENDPOINT,
@@ -36,6 +38,7 @@ from app.schemas.upload import (
     StorageRef,
     UploadResponse,
 )
+from app.services.metastore_service import DatasetInsertRecord, MetastoreService
 from app.services.storage_service import S3StorageService
 
 
@@ -46,9 +49,12 @@ class UploadService:
         *,
         storage_enabled: bool = MINIO_UPLOAD_ENABLED,
         storage_service: S3StorageService | None = None,
+        metastore_enabled: bool = METASTORE_INSERT_ENABLED,
+        metastore_service: MetastoreService | None = None,
     ) -> None:
         self.raw_bucket = raw_bucket
         self.storage_enabled = storage_enabled
+        self.metastore_enabled = metastore_enabled
         self.storage_service = storage_service or S3StorageService(
             endpoint=MINIO_ENDPOINT,
             access_key=MINIO_ACCESS_KEY,
@@ -56,6 +62,9 @@ class UploadService:
             bucket=raw_bucket,
             secure=MINIO_SECURE,
             auto_create_bucket=MINIO_AUTO_CREATE_BUCKET,
+        )
+        self.metastore_service = metastore_service or MetastoreService(
+            database_url=DATABASE_URL
         )
 
     async def handle_upload(
@@ -113,6 +122,27 @@ class UploadService:
                 raise self._build_error(
                     code="STORAGE_ERROR",
                     message="Failed to write object to storage backend.",
+                    details={"reason": str(exc)[:200]},
+                    status_code=500,
+                ) from exc
+
+        if self.metastore_enabled:
+            try:
+                self.metastore_service.insert_dataset_metadata(
+                    DatasetInsertRecord(
+                        dataset_id=dataset_id,
+                        parse_status="ready",
+                        original_filename=file.filename or "unknown",
+                        extension=extension,
+                        mime_type=file.content_type or "application/octet-stream",
+                        size_bytes=file_size,
+                        storage_key_raw=object_key,
+                    )
+                )
+            except Exception as exc:
+                raise self._build_error(
+                    code="METASTORE_ERROR",
+                    message="Failed to write metadata to metastore backend.",
                     details={"reason": str(exc)[:200]},
                     status_code=500,
                 ) from exc
