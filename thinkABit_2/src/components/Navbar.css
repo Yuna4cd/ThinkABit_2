@@ -56,7 +56,7 @@ nav a {
     bottom: -5px;
     width: 0%;
     height: 3px;
-    background: wheat;
+    background: var(--hover-underline);
     transition: width 0.25s ease-in-out;
 }
 

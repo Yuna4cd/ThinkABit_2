@@ -13,8 +13,8 @@ export default function Navbar() {
         <nav>
             <Link to="/" className="logo-link"><img src={logo} alt='logo' className='logo-img'/></Link>
             <div className='nav-btn'>
-                <NavLink to="/upload">Visualization<i class="fa-solid fa-chart-area"></i></NavLink>
-                <NavLink to="/documents">Documents<i class="fa-solid fa-file"></i></NavLink>
+                <NavLink to="/upload">Visualization<i className="fa-solid fa-chart-area"></i></NavLink>
+                <NavLink to="/documents">Documents<i className="fa-solid fa-file"></i></NavLink>
             </div>
             <div className='user-section'>
                 <span>{user.name}</span>
