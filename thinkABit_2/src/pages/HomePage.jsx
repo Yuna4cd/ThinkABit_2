@@ -21,7 +21,7 @@ export default function HomePage() {
         } else {
             setActiveStep(index)
         }
-    }
+    }   
 
     return (
         <div className="home-container">
