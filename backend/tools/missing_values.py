@@ -77,4 +77,39 @@ def fill_median(dataset: pd.DataFrame) -> pd.DataFrame:
     medians = dataset.median(numeric_only=True)
     return dataset.fillna(medians)
 
-# TODO: bfill and ffill functions
+
+def backfill(dataset: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fills missing values with the value that comes after it columnwise
+
+    Args:
+        dataset (DataFrame): dataset being updated
+
+    Returns:
+        DataFrame: Returns DataFrame with missing values back filled
+    """
+    return dataset.bfill(axis=0)
+
+def forwardfill(dataset: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fills missing values with the value that comes before it columnwise
+
+    Args:
+        dataset (DataFrame): dataset being updated
+
+    Returns:
+        DataFrame: Returns DataFrame with missing values forward filled
+    """
+    return dataset.ffill(axis=0)
+
+def bothfill(dataset: pd.DataFrame) -> pd.DataFrame:
+    """
+    Use both back fill and foward fill
+
+    Args:
+        dataset (DataFrame): dataset being updated
+
+    Returns:
+        DataFrame: Returns DataFrame with no missing values
+    """
+    return dataset.ffill(axis=0).bfill(axis=0)
