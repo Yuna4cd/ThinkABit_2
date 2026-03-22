@@ -6,7 +6,7 @@ export default function Navbar() {
         <nav>
             <Link to="/" className="logo-link">ThinkABit</Link>
             <div>
-                <NavLink to="/upload">Visualization</NavLink>
+                <NavLink to="/visualization">Visualization</NavLink>
                 <NavLink to="/documents">Documents</NavLink>
             </div>
             <div>Username</div>

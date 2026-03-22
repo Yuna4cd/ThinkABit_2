@@ -1,0 +1,72 @@
+.documents-container {
+  padding: 30px;
+}
+
+.documents-container h2 {
+  margin-bottom: 20px;
+}
+
+.projects-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.project-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background-color: #333;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.project-icon {
+  font-size: 2.5rem;
+}
+
+.project-info {
+  flex: 1;
+}
+
+.project-info h3 {
+  margin: 0 0 5px 0;
+}
+
+.project-description {
+  color: #aaa;
+  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+}
+
+.project-meta {
+  display: flex;
+  gap: 15px;
+}
+
+.project-type {
+  background-color: #555;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+}
+
+.project-date {
+  color: #aaa;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+}
+
+.download-btn {
+  padding: 8px 16px;
+  background-color: #8884d8;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.download-btn:hover {
+  background-color: #6c68c4;
+}
