@@ -1,0 +1,28 @@
+.Popup-container {
+    display: flex;
+    position: fixed;
+    top:90px;
+    right:5px;
+    z-index: 100;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.Popup-message {
+    padding: 10px 20px;
+    border-radius: 5px;
+    color: white;
+    font-weight: 500;
+}
+
+.Popup-container.error {
+    background: rgb(207, 15, 15);
+}
+
+.Popup-container.warning {
+    background: rgb(182, 182, 66);
+}
+
+.Popup-container.success {
+    background: green;
+}
