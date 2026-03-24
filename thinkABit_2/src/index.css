@@ -11,6 +11,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --hokie-primary: #861F41;
+  --hokie-secondary: #E5751F;
+  --hover-underline: rgb(236, 233, 225);
+  --border-color: #ccc;
+
 }
 
 a {

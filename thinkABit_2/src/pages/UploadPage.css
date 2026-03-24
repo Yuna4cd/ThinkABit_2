@@ -15,6 +15,7 @@
 }
 
 .preview-box {
+    flex-direction: column;
     border: 1px solid #ccc;
     border-radius: 8px;
     height: 250px;
