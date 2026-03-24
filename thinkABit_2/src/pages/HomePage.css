@@ -25,3 +25,8 @@
     flex: 1;
     padding: 20px;
 }
+
+.active-step {
+    background-color: #ccc;
+    font-weight: bold;
+}
