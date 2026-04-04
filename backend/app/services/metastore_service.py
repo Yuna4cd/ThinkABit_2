@@ -43,6 +43,13 @@ class DatasetSchemaRecord:
     schema_json: list[dict[str, str | int]]
 
 
+@dataclass
+class DatasetPreviewSourceRecord:
+    dataset_id: str
+    extension: str
+    storage_key_raw: str
+
+
 class MetastoreService:
     def __init__(self, *, database_url: str | None) -> None:
         self.database_url = database_url
@@ -163,4 +170,32 @@ class MetastoreService:
         return DatasetSchemaRecord(
             dataset_id=row[0],
             schema_json=row[1],
+        )
+
+    def get_dataset_preview_source(
+        self, dataset_id: str
+    ) -> DatasetPreviewSourceRecord | None:
+        if not self.database_url:
+            raise RuntimeError("DATABASE_URL is not configured")
+
+        query = """
+            SELECT
+                dataset_id,
+                extension,
+                storage_key_raw
+            FROM public.datasets
+            WHERE dataset_id = %s
+        """
+
+        with psycopg2.connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, (dataset_id,))
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+
+        return DatasetPreviewSourceRecord(
+            dataset_id=row[0],
+            extension=row[1],
+            storage_key_raw=row[2],
         )

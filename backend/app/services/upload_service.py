@@ -86,8 +86,7 @@ class UploadService:
         await file.seek(0)
 
         try:
-            dataframe = self._parse_to_dataframe(content=content, extension=extension)
-            dataframe = self._normalize_columns(dataframe)
+            dataframe = self.parse_dataset_bytes(content=content, extension=extension)
 
             if len(dataframe) > ROW_CAP:
                 raise self._build_error(
@@ -172,6 +171,28 @@ class UploadService:
             ),
             warnings=[],
         )
+
+    def parse_dataset_bytes(self, *, content: bytes, extension: str) -> pd.DataFrame:
+        dataframe = self._parse_to_dataframe(content=content, extension=extension)
+        return self._normalize_columns(dataframe)
+
+    def build_preview_rows(
+        self, *, content: bytes, extension: str, limit: int, offset: int
+    ) -> list[dict]:
+        try:
+            dataframe = self.parse_dataset_bytes(content=content, extension=extension)
+            rows = self._build_preview(dataframe, len(dataframe))
+        except APIError:
+            raise
+        except Exception as exc:
+            raise self._build_error(
+                code="PARSE_FAILED",
+                message=f"Failed to parse {extension} file.",
+                details={"reason": str(exc)[:200]},
+                status_code=422,
+            ) from exc
+
+        return rows[offset : offset + limit]
 
     def _parse_to_dataframe(self, content: bytes, extension: str) -> pd.DataFrame:
         if extension == "csv":

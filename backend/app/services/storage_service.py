@@ -35,6 +35,11 @@ class S3StorageService:
             ContentType=content_type,
         )
 
+    def get_object(self, *, key: str) -> bytes:
+        self._ensure_bucket()
+        response = self._client.get_object(Bucket=self.bucket, Key=key)
+        return response["Body"].read()
+
     def _ensure_bucket(self) -> None:
         if self._bucket_ready:
             return

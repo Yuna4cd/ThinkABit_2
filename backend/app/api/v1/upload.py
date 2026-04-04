@@ -1,12 +1,13 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Query, UploadFile
 
 from app.core.config import DATABASE_URL, DEFAULT_PREVIEW_ROWS
 from app.errors import APIError
 from app.schemas.upload import (
     ColumnSchema,
     DatasetMetadataResponse,
+    DatasetPreviewResponse,
     DatasetSchemaResponse,
     FileMeta,
     Shape,
@@ -116,4 +117,60 @@ def get_dataset_schema(dataset_id: str) -> DatasetSchemaResponse:
     return DatasetSchemaResponse(
         dataset_id=record.dataset_id,
         schema_=[ColumnSchema(**column) for column in record.schema_json],
+    )
+
+
+@router.get(
+    "/datasets/{dataset_id}/preview",
+    response_model=DatasetPreviewResponse,
+    status_code=200,
+)
+def get_dataset_preview(
+    dataset_id: str,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> DatasetPreviewResponse:
+    try:
+        record = metastore_service.get_dataset_preview_source(dataset_id)
+    except Exception as exc:
+        raise APIError(
+            status_code=500,
+            code="METASTORE_ERROR",
+            message="Failed to read metadata from metastore backend.",
+            details={"reason": str(exc)[:200]},
+            request_id=f"req_{uuid4().hex[:8]}",
+        ) from exc
+
+    if record is None:
+        raise APIError(
+            status_code=404,
+            code="DATASET_NOT_FOUND",
+            message="Dataset not found.",
+            details={"dataset_id": dataset_id},
+            request_id=f"req_{uuid4().hex[:8]}",
+        )
+
+    try:
+        content = upload_service.storage_service.get_object(key=record.storage_key_raw)
+    except Exception as exc:
+        raise APIError(
+            status_code=500,
+            code="STORAGE_ERROR",
+            message="Failed to read object from storage backend.",
+            details={"reason": str(exc)[:200]},
+            request_id=f"req_{uuid4().hex[:8]}",
+        ) from exc
+
+    rows = upload_service.build_preview_rows(
+        content=content,
+        extension=record.extension,
+        limit=limit,
+        offset=offset,
+    )
+
+    return DatasetPreviewResponse(
+        dataset_id=record.dataset_id,
+        limit=limit,
+        offset=offset,
+        rows=rows,
     )

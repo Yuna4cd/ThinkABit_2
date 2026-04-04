@@ -70,6 +70,13 @@ class DatasetSchemaResponse(BaseModel):
     schema_: list[ColumnSchema] = Field(alias="schema")
 
 
+class DatasetPreviewResponse(BaseModel):
+    dataset_id: str
+    limit: int = Field(ge=1, le=200)
+    offset: int = Field(ge=0)
+    rows: list[dict[str, Any]]
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str

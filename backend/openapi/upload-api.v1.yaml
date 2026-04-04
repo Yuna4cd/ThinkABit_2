@@ -162,6 +162,8 @@ paths:
                 $ref: '#/components/schemas/DatasetPreviewResponse'
         '404':
           $ref: '#/components/responses/DatasetNotFoundError'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '422':
           $ref: '#/components/responses/UnprocessableDataError'
         '500':
