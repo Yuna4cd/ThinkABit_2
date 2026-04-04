@@ -1,67 +1,108 @@
-# Backend Skeleton
+# Backend Quick Start
 
-## Run locally
+This backend bootstrap flow is supported on macOS and Linux.
 
-1. Create virtual environment and install dependencies from `requirements.txt`.
-2. (Optional but recommended) Start local MinIO:
+## Commands
 
-```bash
-docker compose -f backend/docker-compose.minio.yml up -d
-```
-
-3. Copy env template and adjust values if needed:
+Run all commands from the repository root:
 
 ```bash
-cp backend/.env.example backend/.env
+make backend-setup-minimal
+make backend-setup-full
+make backend-run
+make backend-test
 ```
 
-4. Start API:
+The backend virtual environment is created at `backend/.venv`.
+
+## Minimal Setup
+
+Use minimal mode when you only need the API and test suite.
 
 ```bash
-uvicorn app.main:app --reload --app-dir backend
+make backend-setup-minimal
 ```
 
-## Endpoints in skeleton
+This command:
+
+- creates `backend/.venv` if needed
+- installs `backend/requirements.txt`
+- creates `backend/.env` from `backend/.env.example` if it does not exist
+- sets `MINIO_UPLOAD_ENABLED=false`
+- sets `METASTORE_INSERT_ENABLED=false`
+
+After setup:
+
+```bash
+make backend-run
+make backend-test
+```
+
+## Full Setup
+
+Use full mode when you need local MinIO plus the remote Supabase/Postgres
+connection settings required by the backend metadata flow.
+
+```bash
+make backend-setup-full
+```
+
+This command:
+
+- runs the full minimal setup flow first
+- starts MinIO with `backend/docker-compose.minio.yml`
+- sets `MINIO_UPLOAD_ENABLED=true`
+- sets `METASTORE_INSERT_ENABLED=true`
+- validates `DATABASE_URL`
+
+If `DATABASE_URL` is still a placeholder, setup stops with a clear error after
+starting MinIO. The repository does not store real credentials. Your team must
+provide the real value separately and save it in `backend/.env`.
+
+## Running the API
+
+```bash
+make backend-run
+```
+
+This starts:
+
+```bash
+backend/.venv/bin/python -m uvicorn app.main:app --reload --app-dir backend
+```
+
+Health endpoint:
 
 - `GET /health`
-- `POST /api/v1/upload`
 
-Current upload route accepts multipart request and returns contract-compatible
-response shape. Validation, storage write, and dataframe parsing are scaffolded
-for later tasks.
+## Running Tests
 
-## Supabase Metadata Table (MVP)
+```bash
+make backend-test
+```
 
-Migration SQL file:
+This runs:
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests
+```
+
+The test suite is hermetic for storage and metastore by default, so it does not
+require a running MinIO instance or live database connection.
+
+## Supabase Metadata Table
+
+If your team is using the metadata flow, apply the SQL files in `backend/supabase/` to the target Supabase project:
 
 - `backend/supabase/migrations/init_supabase_datasets_metadata_mvp.sql`
-
-Verification SQL file:
-
+- `backend/supabase/migrations/extend_datasets_metadata_for_dataset_get.sql`
 - `backend/supabase/verification/verify_datasets_metadata_mvp.sql`
-- `backend/supabase/migrations/extend_datasets_metadata_for_dataset_get.sql` (run before `GET /api/v1/datasets/{dataset_id}` work)
 
-Manual steps (Supabase):
+Manual settings used by the backend:
 
-1. Open Supabase SQL Editor for your target project.
-2. Run the migration SQL file.
-3. Run the verification SQL file and check:
-   - `public.datasets` exists with expected columns.
-   - enum `public.dataset_parse_status` has `uploaded/parsing/ready/failed`.
-   - trigger `trg_datasets_set_updated_at` exists and updates `updated_at`.
+- `DATABASE_URL`
+- `METASTORE_INSERT_ENABLED`
 
-Manual settings:
-
-- If you use a schema other than `public`, replace `public.` prefixes in both SQL files.
-- For later app integration (Task 8/9), configure:
-  - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_ROLE_KEY`
-  - `DATABASE_URL`
-  - `METASTORE_INSERT_ENABLED`
-
-## MinIO Upload Notes
-
-- Upload to object storage is controlled by `MINIO_UPLOAD_ENABLED`.
-- `MINIO_UPLOAD_ENABLED=true` enables real `put_object` writes.
-- Default local endpoint is `http://localhost:19000` and bucket is `thinkabit-raw`.
-- Metadata insert to Supabase Postgres is controlled by `METASTORE_INSERT_ENABLED`.
+Additional Supabase-related values can stay in `.env` for future integrations,
+but the current backend runtime only requires `DATABASE_URL` for metastore
+writes.
