@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import Popup from '../components/Popup'
+import Chatbot from '../components/ChatBot'
 import './UploadPage.css'
+
 
 export default function UploadPage() {
     const navigate = useNavigate()
@@ -64,7 +66,7 @@ export default function UploadPage() {
             <div className="upload-box" onClick={() => navigate('/visualization')}>
                 <p>Go Visualization!</p>
             </div>
-            <div className="chatbot-icon">💬</div>
+            <Chatbot />
         </div>
     )
 }
