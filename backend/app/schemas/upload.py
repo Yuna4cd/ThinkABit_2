@@ -77,6 +77,11 @@ class DatasetPreviewResponse(BaseModel):
     rows: list[dict[str, Any]]
 
 
+class DatasetContentResponse(BaseModel):
+    dataset_id: str
+    rows: list[dict[str, Any]]
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str

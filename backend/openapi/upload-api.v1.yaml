@@ -168,6 +168,27 @@ paths:
           $ref: '#/components/responses/UnprocessableDataError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /datasets/{dataset_id}/content:
+    get:
+      tags:
+        - Datasets
+      summary: Get full dataset content
+      operationId: getDatasetContent
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '200':
+          description: Full dataset content returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetContentResponse'
+        '404':
+          $ref: '#/components/responses/DatasetNotFoundError'
+        '422':
+          $ref: '#/components/responses/UnprocessableDataError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   parameters:
     DatasetId:
@@ -421,6 +442,18 @@ components:
           type: integer
         offset:
           type: integer
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewRow'
+    DatasetContentResponse:
+      type: object
+      required:
+        - dataset_id
+        - rows
+      properties:
+        dataset_id:
+          type: string
         rows:
           type: array
           items:
