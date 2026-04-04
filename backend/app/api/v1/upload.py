@@ -4,7 +4,15 @@ from fastapi import APIRouter, File, Form, UploadFile
 
 from app.core.config import DATABASE_URL, DEFAULT_PREVIEW_ROWS
 from app.errors import APIError
-from app.schemas.upload import DatasetMetadataResponse, FileMeta, Shape, SourceType, UploadResponse
+from app.schemas.upload import (
+    ColumnSchema,
+    DatasetMetadataResponse,
+    DatasetSchemaResponse,
+    FileMeta,
+    Shape,
+    SourceType,
+    UploadResponse,
+)
 from app.services.metastore_service import MetastoreService
 from app.services.upload_service import UploadService
 from app.services.upload_validator import UploadValidator
@@ -76,4 +84,36 @@ def get_dataset(dataset_id: str) -> DatasetMetadataResponse:
         shape=Shape(rows=record.row_count, columns=record.column_count),
         created_at=record.created_at,
         updated_at=record.updated_at,
+    )
+
+
+@router.get(
+    "/datasets/{dataset_id}/schema",
+    response_model=DatasetSchemaResponse,
+    status_code=200,
+)
+def get_dataset_schema(dataset_id: str) -> DatasetSchemaResponse:
+    try:
+        record = metastore_service.get_dataset_schema(dataset_id)
+    except Exception as exc:
+        raise APIError(
+            status_code=500,
+            code="METASTORE_ERROR",
+            message="Failed to read metadata from metastore backend.",
+            details={"reason": str(exc)[:200]},
+            request_id=f"req_{uuid4().hex[:8]}",
+        ) from exc
+
+    if record is None:
+        raise APIError(
+            status_code=404,
+            code="DATASET_NOT_FOUND",
+            message="Dataset not found.",
+            details={"dataset_id": dataset_id},
+            request_id=f"req_{uuid4().hex[:8]}",
+        )
+
+    return DatasetSchemaResponse(
+        dataset_id=record.dataset_id,
+        schema_=[ColumnSchema(**column) for column in record.schema_json],
     )

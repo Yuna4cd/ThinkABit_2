@@ -139,6 +139,7 @@ class UploadService:
                         size_bytes=file_size,
                         row_count=int(dataframe.shape[0]),
                         column_count=int(dataframe.shape[1]),
+                        schema_json=[column.model_dump() for column in schema],
                         storage_key_raw=object_key,
                     )
                 )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -17,6 +18,7 @@ class DatasetInsertRecord:
     size_bytes: int
     row_count: int
     column_count: int
+    schema_json: list[dict[str, str | int]]
     storage_key_raw: str
 
 
@@ -33,6 +35,12 @@ class DatasetMetadataRecord:
     column_count: int
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass
+class DatasetSchemaRecord:
+    dataset_id: str
+    schema_json: list[dict[str, str | int]]
 
 
 class MetastoreService:
@@ -54,6 +62,7 @@ class MetastoreService:
                 size_bytes,
                 row_count,
                 column_count,
+                schema_json,
                 storage_key_raw
             )
             VALUES (
@@ -66,6 +75,7 @@ class MetastoreService:
                 %s,
                 %s,
                 %s,
+                %s::jsonb,
                 %s
             )
         """
@@ -84,6 +94,7 @@ class MetastoreService:
                         record.size_bytes,
                         record.row_count,
                         record.column_count,
+                        json.dumps(record.schema_json),
                         record.storage_key_raw,
                     ),
                 )
@@ -128,4 +139,28 @@ class MetastoreService:
             column_count=int(row[8]),
             created_at=row[9],
             updated_at=row[10],
+        )
+
+    def get_dataset_schema(self, dataset_id: str) -> DatasetSchemaRecord | None:
+        if not self.database_url:
+            raise RuntimeError("DATABASE_URL is not configured")
+
+        query = """
+            SELECT
+                dataset_id,
+                COALESCE(schema_json, '[]'::jsonb)
+            FROM public.datasets
+            WHERE dataset_id = %s
+        """
+
+        with psycopg2.connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, (dataset_id,))
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+
+        return DatasetSchemaRecord(
+            dataset_id=row[0],
+            schema_json=row[1],
         )

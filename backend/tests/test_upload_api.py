@@ -327,6 +327,10 @@ def test_upload_with_metastore_enabled_calls_insert(
     assert record.size_bytes == len(b"col1,col2\n1,2\n")
     assert record.row_count == 1
     assert record.column_count == 2
+    assert record.schema_json == [
+        {"name": "col1", "dtype": "int", "null_count": 0},
+        {"name": "col2", "dtype": "int", "null_count": 0},
+    ]
     assert "raw/" in record.storage_key_raw
 
 
@@ -495,6 +499,68 @@ def test_get_dataset_metastore_error_returns_metastore_error(
     monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
 
     response = client.get("/api/v1/datasets/ds_test_002")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
+def test_get_dataset_schema_returns_schema_payload(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_schema.return_value = type(
+        "SchemaRecord",
+        (),
+        {
+            "dataset_id": "ds_test_003",
+            "schema_json": [
+                {"name": "name", "dtype": "string", "null_count": 0},
+                {"name": "score", "dtype": "int", "null_count": 1},
+            ],
+        },
+    )()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_test_003/schema")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_test_003",
+        "schema": [
+            {"name": "name", "dtype": "string", "null_count": 0},
+            {"name": "score", "dtype": "int", "null_count": 1},
+        ],
+    }
+
+
+def test_get_dataset_schema_not_found_returns_dataset_not_found(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_schema.return_value = None
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_missing/schema")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "DATASET_NOT_FOUND"
+
+
+def test_get_dataset_schema_metastore_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_schema.side_effect = RuntimeError(
+        "simulated schema read failure"
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_test_004/schema")
 
     assert response.status_code == 500
     payload = response.json()

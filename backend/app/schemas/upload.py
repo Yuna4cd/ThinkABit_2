@@ -63,6 +63,13 @@ class DatasetMetadataResponse(BaseModel):
     updated_at: datetime
 
 
+class DatasetSchemaResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    dataset_id: str
+    schema_: list[ColumnSchema] = Field(alias="schema")
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str
