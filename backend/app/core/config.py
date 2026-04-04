@@ -39,3 +39,7 @@ MINIO_UPLOAD_ENABLED = _env_bool("MINIO_UPLOAD_ENABLED", default=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 METASTORE_INSERT_ENABLED = _env_bool("METASTORE_INSERT_ENABLED", default=True)
+
+# chatbot api key
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = "gemini-2.5-flash"
