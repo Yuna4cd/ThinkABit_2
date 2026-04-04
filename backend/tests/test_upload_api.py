@@ -327,6 +327,10 @@ def test_upload_with_metastore_enabled_calls_insert(
     assert record.size_bytes == len(b"col1,col2\n1,2\n")
     assert record.row_count == 1
     assert record.column_count == 2
+    assert record.schema_json == [
+        {"name": "col1", "dtype": "int", "null_count": 0},
+        {"name": "col2", "dtype": "int", "null_count": 0},
+    ]
     assert "raw/" in record.storage_key_raw
 
 
@@ -500,3 +504,696 @@ def test_get_dataset_metastore_error_returns_metastore_error(
     payload = response.json()
     assert_error_schema(payload)
     assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
+def test_get_dataset_schema_returns_schema_payload(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_schema.return_value = type(
+        "SchemaRecord",
+        (),
+        {
+            "dataset_id": "ds_test_003",
+            "schema_json": [
+                {"name": "name", "dtype": "string", "null_count": 0},
+                {"name": "score", "dtype": "int", "null_count": 1},
+            ],
+        },
+    )()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_test_003/schema")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_test_003",
+        "schema": [
+            {"name": "name", "dtype": "string", "null_count": 0},
+            {"name": "score", "dtype": "int", "null_count": 1},
+        ],
+    }
+
+
+def test_get_dataset_schema_not_found_returns_dataset_not_found(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_schema.return_value = None
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_missing/schema")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "DATASET_NOT_FOUND"
+
+
+def test_get_dataset_schema_metastore_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_schema.side_effect = RuntimeError(
+        "simulated schema read failure"
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_test_004/schema")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
+def test_delete_dataset_returns_success_payload(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_001",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_001/sample.csv",
+        },
+    )()
+    mock_metastore.delete_dataset_metadata.return_value = True
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_001")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "dataset_id": "ds_test_delete_001",
+        "deleted": True,
+        "message": "Dataset deleted successfully.",
+    }
+    mock_storage.delete_object.assert_called_once_with(
+        key="raw/demo/ds_test_delete_001/sample.csv"
+    )
+    mock_metastore.delete_dataset_metadata.assert_called_once_with(
+        "ds_test_delete_001"
+    )
+
+
+def test_delete_dataset_not_found_returns_dataset_not_found(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = None
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_missing")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "DATASET_NOT_FOUND"
+    mock_storage.delete_object.assert_not_called()
+    mock_metastore.delete_dataset_metadata.assert_not_called()
+
+
+def test_delete_dataset_metastore_lookup_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.side_effect = RuntimeError(
+        "simulated lookup failure"
+    )
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_002")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+    mock_storage.delete_object.assert_not_called()
+    mock_metastore.delete_dataset_metadata.assert_not_called()
+
+
+def test_delete_dataset_storage_error_returns_storage_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_003",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_003/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.delete_object.side_effect = RuntimeError("simulated storage failure")
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_003")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "STORAGE_ERROR"
+    mock_metastore.delete_dataset_metadata.assert_not_called()
+
+
+def test_delete_dataset_metastore_delete_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_004",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_004/sample.csv",
+        },
+    )()
+    mock_metastore.delete_dataset_metadata.side_effect = RuntimeError(
+        "simulated delete failure"
+    )
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_004")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+    mock_storage.delete_object.assert_called_once()
+
+
+def test_delete_dataset_zero_rows_deleted_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_005",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_005/sample.csv",
+        },
+    )()
+    mock_metastore.delete_dataset_metadata.return_value = False
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_005")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
+def test_get_dataset_preview_returns_default_paginated_rows(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_preview_001",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_preview_001/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = b"name,score\nAlice,90\nBob,85\n"
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_preview_001/preview")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_preview_001",
+        "limit": 100,
+        "offset": 0,
+        "rows": [
+            {"name": "Alice", "score": 90},
+            {"name": "Bob", "score": 85},
+        ],
+    }
+
+
+def test_get_dataset_content_returns_full_csv_rows(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_content_001",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_content_001/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = b"name,score\nAlice,90\nBob,85\nCara,88\n"
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_content_001/content")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_content_001",
+        "rows": [
+            {"name": "Alice", "score": 90},
+            {"name": "Bob", "score": 85},
+            {"name": "Cara", "score": 88},
+        ],
+    }
+
+
+def test_get_dataset_content_returns_full_json_rows(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_content_002",
+            "extension": "json",
+            "storage_key_raw": "raw/demo/ds_content_002/sample.json",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = (
+        b'[{"name":"Alice","score":90},{"name":"Bob","score":85}]'
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_content_002/content")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_content_002",
+        "rows": [
+            {"name": "Alice", "score": 90},
+            {"name": "Bob", "score": 85},
+        ],
+    }
+
+
+def test_get_dataset_content_returns_empty_rows_for_empty_dataframe(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_content_003",
+            "extension": "json",
+            "storage_key_raw": "raw/demo/ds_content_003/sample.json",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = b'{"name":[],"score":[]}'
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_content_003/content")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_content_003",
+        "rows": [],
+    }
+
+
+def test_get_dataset_preview_applies_limit_and_offset(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_preview_002",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_preview_002/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = b"name,score\nAlice,90\nBob,85\nCara,88\n"
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_preview_002/preview?limit=1&offset=1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_preview_002",
+        "limit": 1,
+        "offset": 1,
+        "rows": [
+            {"name": "Bob", "score": 85},
+        ],
+    }
+
+
+def test_get_dataset_preview_offset_beyond_range_returns_empty_rows(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_preview_003",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_preview_003/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = b"name,score\nAlice,90\n"
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_preview_003/preview?offset=5")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_preview_003",
+        "limit": 100,
+        "offset": 5,
+        "rows": [],
+    }
+
+
+def test_get_dataset_preview_not_found_returns_dataset_not_found(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = None
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_missing/preview")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "DATASET_NOT_FOUND"
+
+
+def test_get_dataset_content_not_found_returns_dataset_not_found(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = None
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_missing/content")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "DATASET_NOT_FOUND"
+
+
+def test_get_dataset_preview_metastore_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.side_effect = RuntimeError(
+        "simulated preview read failure"
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_preview_004/preview")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
+def test_get_dataset_content_metastore_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.side_effect = RuntimeError(
+        "simulated content read failure"
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/datasets/ds_content_004/content")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
+def test_get_dataset_preview_storage_error_returns_storage_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_preview_005",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_preview_005/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.side_effect = RuntimeError("simulated storage failure")
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_preview_005/preview")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "STORAGE_ERROR"
+
+
+def test_get_dataset_content_storage_error_returns_storage_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_content_005",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_content_005/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.side_effect = RuntimeError("simulated storage failure")
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_content_005/content")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "STORAGE_ERROR"
+
+
+def test_get_dataset_preview_parse_failure_returns_parse_failed(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_preview_006",
+            "extension": "json",
+            "storage_key_raw": "raw/demo/ds_preview_006/sample.json",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = b'{"a":1,"b":2}'
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_preview_006/preview")
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "PARSE_FAILED"
+
+
+def test_get_dataset_content_parse_failure_returns_parse_failed(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_content_006",
+            "extension": "json",
+            "storage_key_raw": "raw/demo/ds_content_006/sample.json",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = b'{"a":1,"b":2}'
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.get("/api/v1/datasets/ds_content_006/content")
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "PARSE_FAILED"
+
+
+def test_get_dataset_preview_invalid_pagination_returns_invalid_request(
+    client: TestClient,
+) -> None:
+    response = client.get("/api/v1/datasets/ds_preview_007/preview?limit=0")
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "INVALID_REQUEST"
+
+    response = client.get("/api/v1/datasets/ds_preview_007/preview?limit=201")
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "INVALID_REQUEST"
+
+    response = client.get("/api/v1/datasets/ds_preview_007/preview?offset=-1")
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "INVALID_REQUEST"
+
+
+def test_get_dataset_preview_serializes_null_and_datetime_values(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_preview_008",
+            "extension": "json",
+            "storage_key_raw": "raw/demo/ds_preview_008/sample.json",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = (
+        b'[{"created_at":"2025-01-02T03:04:05Z","score":null}]'
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+    original_parse_json = upload_module.upload_service._parse_json_to_dataframe
+
+    def parse_json_with_dates(content: bytes):
+        dataframe = original_parse_json(content)
+        dataframe["created_at"] = dataframe["created_at"].apply(
+            lambda value: datetime.fromisoformat(value.replace("Z", "+00:00"))
+        )
+        return dataframe
+
+    monkeypatch.setattr(
+        upload_module.upload_service,
+        "_parse_json_to_dataframe",
+        parse_json_with_dates,
+    )
+
+    response = client.get("/api/v1/datasets/ds_preview_008/preview")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_preview_008",
+        "limit": 100,
+        "offset": 0,
+        "rows": [
+            {"created_at": "2025-01-02T03:04:05Z", "score": None},
+        ],
+    }
+
+
+def test_get_dataset_content_serializes_null_and_datetime_values(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_content_008",
+            "extension": "json",
+            "storage_key_raw": "raw/demo/ds_content_008/sample.json",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.get_object.return_value = (
+        b'[{"created_at":"2025-01-02T03:04:05Z","score":null}]'
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+    original_parse_json = upload_module.upload_service._parse_json_to_dataframe
+
+    def parse_json_with_dates(content: bytes):
+        dataframe = original_parse_json(content)
+        dataframe["created_at"] = dataframe["created_at"].apply(
+            lambda value: datetime.fromisoformat(value.replace("Z", "+00:00"))
+        )
+        return dataframe
+
+    monkeypatch.setattr(
+        upload_module.upload_service,
+        "_parse_json_to_dataframe",
+        parse_json_with_dates,
+    )
+
+    response = client.get("/api/v1/datasets/ds_content_008/content")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        "dataset_id": "ds_content_008",
+        "rows": [
+            {"created_at": "2025-01-02T03:04:05Z", "score": None},
+        ],
+    }

@@ -63,6 +63,31 @@ class DatasetMetadataResponse(BaseModel):
     updated_at: datetime
 
 
+class DatasetSchemaResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    dataset_id: str
+    schema_: list[ColumnSchema] = Field(alias="schema")
+
+
+class DatasetPreviewResponse(BaseModel):
+    dataset_id: str
+    limit: int = Field(ge=1, le=200)
+    offset: int = Field(ge=0)
+    rows: list[dict[str, Any]]
+
+
+class DatasetContentResponse(BaseModel):
+    dataset_id: str
+    rows: list[dict[str, Any]]
+
+
+class DatasetDeleteResponse(BaseModel):
+    dataset_id: str
+    deleted: bool = True
+    message: str
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str

@@ -118,8 +118,18 @@ paths:
       parameters:
         - $ref: '#/components/parameters/DatasetId'
       responses:
-        '204':
-          description: Dataset deleted successfully. Response body is empty.
+        '200':
+          description: Dataset deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetDeleteResponse'
+              examples:
+                success:
+                  value:
+                    dataset_id: ds_01JX5F8QH9P5Y7M3S4V8N2K6TQ
+                    deleted: true
+                    message: Dataset deleted successfully.
         '404':
           $ref: '#/components/responses/DatasetNotFoundError'
         '500':
@@ -160,6 +170,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DatasetPreviewResponse'
+        '404':
+          $ref: '#/components/responses/DatasetNotFoundError'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '422':
+          $ref: '#/components/responses/UnprocessableDataError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /datasets/{dataset_id}/content:
+    get:
+      tags:
+        - Datasets
+      summary: Get full dataset content
+      operationId: getDatasetContent
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '200':
+          description: Full dataset content returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatasetContentResponse'
         '404':
           $ref: '#/components/responses/DatasetNotFoundError'
         '422':
@@ -423,6 +456,34 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PreviewRow'
+    DatasetContentResponse:
+      type: object
+      required:
+        - dataset_id
+        - rows
+      properties:
+        dataset_id:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreviewRow'
+    DatasetDeleteResponse:
+      type: object
+      required:
+        - dataset_id
+        - deleted
+        - message
+      properties:
+        dataset_id:
+          type: string
+          example: ds_01JX5F8QH9P5Y7M3S4V8N2K6TQ
+        deleted:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Dataset deleted successfully.
     DatasetStatus:
       type: string
       description: API status mapped from metastore field parse_status.
