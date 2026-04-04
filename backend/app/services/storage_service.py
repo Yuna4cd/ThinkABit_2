@@ -40,6 +40,10 @@ class S3StorageService:
         response = self._client.get_object(Bucket=self.bucket, Key=key)
         return response["Body"].read()
 
+    def delete_object(self, *, key: str) -> None:
+        self._ensure_bucket()
+        self._client.delete_object(Bucket=self.bucket, Key=key)
+
     def _ensure_bucket(self) -> None:
         if self._bucket_ready:
             return

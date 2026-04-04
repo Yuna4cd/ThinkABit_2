@@ -82,6 +82,12 @@ class DatasetContentResponse(BaseModel):
     rows: list[dict[str, Any]]
 
 
+class DatasetDeleteResponse(BaseModel):
+    dataset_id: str
+    deleted: bool = True
+    message: str
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str

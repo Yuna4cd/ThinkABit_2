@@ -199,3 +199,19 @@ class MetastoreService:
             extension=row[1],
             storage_key_raw=row[2],
         )
+
+    def delete_dataset_metadata(self, dataset_id: str) -> bool:
+        if not self.database_url:
+            raise RuntimeError("DATABASE_URL is not configured")
+
+        query = """
+            DELETE FROM public.datasets
+            WHERE dataset_id = %s
+        """
+
+        with psycopg2.connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, (dataset_id,))
+                deleted_count = cursor.rowcount
+
+        return deleted_count > 0

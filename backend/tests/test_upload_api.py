@@ -568,6 +568,162 @@ def test_get_dataset_schema_metastore_error_returns_metastore_error(
     assert payload["error"]["code"] == "METASTORE_ERROR"
 
 
+def test_delete_dataset_returns_success_payload(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_001",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_001/sample.csv",
+        },
+    )()
+    mock_metastore.delete_dataset_metadata.return_value = True
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_001")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "dataset_id": "ds_test_delete_001",
+        "deleted": True,
+        "message": "Dataset deleted successfully.",
+    }
+    mock_storage.delete_object.assert_called_once_with(
+        key="raw/demo/ds_test_delete_001/sample.csv"
+    )
+    mock_metastore.delete_dataset_metadata.assert_called_once_with(
+        "ds_test_delete_001"
+    )
+
+
+def test_delete_dataset_not_found_returns_dataset_not_found(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = None
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_missing")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "DATASET_NOT_FOUND"
+    mock_storage.delete_object.assert_not_called()
+    mock_metastore.delete_dataset_metadata.assert_not_called()
+
+
+def test_delete_dataset_metastore_lookup_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.side_effect = RuntimeError(
+        "simulated lookup failure"
+    )
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_002")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+    mock_storage.delete_object.assert_not_called()
+    mock_metastore.delete_dataset_metadata.assert_not_called()
+
+
+def test_delete_dataset_storage_error_returns_storage_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_003",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_003/sample.csv",
+        },
+    )()
+    mock_storage = Mock()
+    mock_storage.delete_object.side_effect = RuntimeError("simulated storage failure")
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_003")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "STORAGE_ERROR"
+    mock_metastore.delete_dataset_metadata.assert_not_called()
+
+
+def test_delete_dataset_metastore_delete_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_004",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_004/sample.csv",
+        },
+    )()
+    mock_metastore.delete_dataset_metadata.side_effect = RuntimeError(
+        "simulated delete failure"
+    )
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_004")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+    mock_storage.delete_object.assert_called_once()
+
+
+def test_delete_dataset_zero_rows_deleted_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.get_dataset_preview_source.return_value = type(
+        "PreviewRecord",
+        (),
+        {
+            "dataset_id": "ds_test_delete_005",
+            "extension": "csv",
+            "storage_key_raw": "raw/demo/ds_test_delete_005/sample.csv",
+        },
+    )()
+    mock_metastore.delete_dataset_metadata.return_value = False
+    mock_storage = Mock()
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+    monkeypatch.setattr(upload_module.upload_service, "storage_service", mock_storage)
+
+    response = client.delete("/api/v1/datasets/ds_test_delete_005")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
 def test_get_dataset_preview_returns_default_paginated_rows(
     client: TestClient, monkeypatch
 ) -> None:

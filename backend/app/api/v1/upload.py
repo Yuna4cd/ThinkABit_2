@@ -7,6 +7,7 @@ from app.errors import APIError
 from app.schemas.upload import (
     ColumnSchema,
     DatasetContentResponse,
+    DatasetDeleteResponse,
     DatasetMetadataResponse,
     DatasetPreviewResponse,
     DatasetSchemaResponse,
@@ -58,6 +59,19 @@ def _get_dataset_storage_content(storage_key: str) -> bytes:
             status_code=500,
             code="STORAGE_ERROR",
             message="Failed to read object from storage backend.",
+            details={"reason": str(exc)[:200]},
+            request_id=f"req_{uuid4().hex[:8]}",
+        ) from exc
+
+
+def _delete_dataset_storage_object(storage_key: str) -> None:
+    try:
+        upload_service.storage_service.delete_object(key=storage_key)
+    except Exception as exc:
+        raise APIError(
+            status_code=500,
+            code="STORAGE_ERROR",
+            message="Failed to delete object from storage backend.",
             details={"reason": str(exc)[:200]},
             request_id=f"req_{uuid4().hex[:8]}",
         ) from exc
@@ -123,6 +137,42 @@ def get_dataset(dataset_id: str) -> DatasetMetadataResponse:
         shape=Shape(rows=record.row_count, columns=record.column_count),
         created_at=record.created_at,
         updated_at=record.updated_at,
+    )
+
+
+@router.delete(
+    "/datasets/{dataset_id}",
+    response_model=DatasetDeleteResponse,
+    status_code=200,
+)
+def delete_dataset(dataset_id: str) -> DatasetDeleteResponse:
+    record = _get_dataset_preview_source_record(dataset_id)
+    _delete_dataset_storage_object(record.storage_key_raw)
+
+    try:
+        deleted = metastore_service.delete_dataset_metadata(dataset_id)
+    except Exception as exc:
+        raise APIError(
+            status_code=500,
+            code="METASTORE_ERROR",
+            message="Failed to delete metadata from metastore backend.",
+            details={"reason": str(exc)[:200]},
+            request_id=f"req_{uuid4().hex[:8]}",
+        ) from exc
+
+    if not deleted:
+        raise APIError(
+            status_code=500,
+            code="METASTORE_ERROR",
+            message="Failed to delete metadata from metastore backend.",
+            details={"dataset_id": dataset_id},
+            request_id=f"req_{uuid4().hex[:8]}",
+        )
+
+    return DatasetDeleteResponse(
+        dataset_id=dataset_id,
+        deleted=True,
+        message="Dataset deleted successfully.",
     )
 
 

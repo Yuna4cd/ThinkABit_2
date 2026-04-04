@@ -213,11 +213,17 @@ Success `200`:
 
 ### 5.5 DELETE `/api/v1/datasets/{dataset_id}`
 
-Deletes dataset metadata from Supabase and best-effort deletes raw object from MinIO.
+Deletes dataset metadata from Supabase and deletes the raw object from MinIO.
 
-Success `204`:
+Success `200`:
 
-- empty body
+```json
+{
+  "dataset_id": "ds_01JX5F8QH9P5Y7M3S4V8N2K6TQ",
+  "deleted": true,
+  "message": "Dataset deleted successfully."
+}
+```
 
 Error examples:
 
