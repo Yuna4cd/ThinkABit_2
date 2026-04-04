@@ -1,6 +1,7 @@
 # Backend Quick Start
 
-This backend bootstrap flow is supported on macOS and Linux.
+This repository keeps `make` commands for macOS and Linux. Windows users should
+use the Python CLI documented below instead of `make`.
 
 ## Commands
 
@@ -14,6 +15,21 @@ make backend-test
 ```
 
 The backend virtual environment is created at `backend/.venv`.
+
+## Windows Commands
+
+Run all commands from the repository root:
+
+```bash
+python backend/tools/dev.py setup-minimal
+python backend/tools/dev.py setup-full
+python backend/tools/dev.py run
+python backend/tools/dev.py test
+```
+
+The Python CLI resolves the virtual environment interpreter from either
+`backend/.venv/bin/python` or `backend/.venv/Scripts/python.exe`, so the same
+commands work across macOS, Linux, and Windows.
 
 ## Minimal Setup
 
@@ -36,6 +52,13 @@ After setup:
 ```bash
 make backend-run
 make backend-test
+```
+
+Windows equivalent:
+
+```bash
+python backend/tools/dev.py run
+python backend/tools/dev.py test
 ```
 
 ## Full Setup
@@ -71,6 +94,12 @@ This starts:
 backend/.venv/bin/python -m uvicorn app.main:app --reload --app-dir backend
 ```
 
+Windows-friendly equivalent:
+
+```bash
+python backend/tools/dev.py run
+```
+
 Health endpoint:
 
 - `GET /health`
@@ -85,6 +114,12 @@ This runs:
 
 ```bash
 backend/.venv/bin/python -m pytest backend/tests
+```
+
+Windows-friendly equivalent:
+
+```bash
+python backend/tools/dev.py test
 ```
 
 The test suite is hermetic for storage and metastore by default, so it does not

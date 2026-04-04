@@ -1,9 +1,12 @@
 from pathlib import Path
 
+import pytest
+
 from tools.bootstrap_env import (
     REQUIRED_FULL_ENV_VARS,
     configure_env_file,
     find_missing_full_env_vars,
+    resolve_venv_python,
 )
 
 
@@ -93,3 +96,26 @@ def test_find_missing_full_env_vars_accepts_realistic_values(tmp_path: Path) -> 
     )
 
     assert find_missing_full_env_vars(env_path) == []
+
+
+def test_resolve_venv_python_prefers_posix_layout(tmp_path: Path) -> None:
+    venv_path = tmp_path / ".venv"
+    posix_python = venv_path / "bin" / "python"
+    posix_python.parent.mkdir(parents=True)
+    posix_python.write_text("", encoding="utf-8")
+
+    assert resolve_venv_python(venv_path) == posix_python
+
+
+def test_resolve_venv_python_prefers_windows_layout(tmp_path: Path) -> None:
+    venv_path = tmp_path / ".venv"
+    windows_python = venv_path / "Scripts" / "python.exe"
+    windows_python.parent.mkdir(parents=True)
+    windows_python.write_text("", encoding="utf-8")
+
+    assert resolve_venv_python(venv_path) == windows_python
+
+
+def test_resolve_venv_python_errors_when_missing(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="Virtual environment python not found"):
+        resolve_venv_python(tmp_path / ".venv")

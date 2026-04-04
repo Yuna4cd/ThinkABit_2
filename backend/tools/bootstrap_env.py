@@ -94,6 +94,28 @@ def run_command(args: list[str], *, cwd: Path) -> None:
     subprocess.run(args, cwd=cwd, check=True)
 
 
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def backend_root() -> Path:
+    return repo_root() / "backend"
+
+
+def resolve_venv_python(venv_path: Path) -> Path:
+    candidates = (
+        venv_path / "bin" / "python",
+        venv_path / "Scripts" / "python.exe",
+    )
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(
+        f"Virtual environment python not found under {venv_path}."
+    )
+
+
 def ensure_virtualenv(venv_path: Path) -> None:
     if venv_path.exists():
         return
@@ -126,37 +148,36 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
-
-    repo_root = Path(__file__).resolve().parents[2]
-    backend_root = repo_root / "backend"
-    env_path = backend_root / ".env"
-    example_path = backend_root / ".env.example"
-    venv_path = backend_root / ".venv"
-    venv_python = venv_path / "bin" / "python"
-    requirements_path = backend_root / "requirements.txt"
+def bootstrap(mode: str) -> int:
+    root = repo_root()
+    backend_dir = backend_root()
+    env_path = backend_dir / ".env"
+    example_path = backend_dir / ".env.example"
+    venv_path = backend_dir / ".venv"
+    requirements_path = backend_dir / "requirements.txt"
 
     try:
-        require_command("python3")
         ensure_virtualenv(venv_path)
+        venv_python = resolve_venv_python(venv_path)
         install_requirements(
             venv_python=venv_python,
             requirements_path=requirements_path,
-            cwd=repo_root,
+            cwd=root,
         )
-        configure_env_file(env_path=env_path, example_path=example_path, mode=args.mode)
+        configure_env_file(env_path=env_path, example_path=example_path, mode=mode)
 
-        if args.mode == "minimal":
+        if mode == "minimal":
             print("Minimal backend setup complete.")
             print("Next steps:")
             print("  make backend-run")
             print("  make backend-test")
+            print("  python backend/tools/dev.py run")
+            print("  python backend/tools/dev.py test")
             return 0
 
         require_command("docker")
-        run_command(["docker", "compose", "version"], cwd=repo_root)
-        start_minio(repo_root=repo_root)
+        run_command(["docker", "compose", "version"], cwd=root)
+        start_minio(repo_root=root)
 
         missing_vars = find_missing_full_env_vars(env_path)
         if missing_vars:
@@ -172,6 +193,8 @@ def main() -> int:
         print("Next steps:")
         print("  make backend-run")
         print("  make backend-test")
+        print("  python backend/tools/dev.py run")
+        print("  python backend/tools/dev.py test")
         return 0
     except subprocess.CalledProcessError as exc:
         print(
@@ -180,6 +203,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return exc.returncode or 1
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    return bootstrap(args.mode)
 
 
 if __name__ == "__main__":
