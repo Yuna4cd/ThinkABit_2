@@ -4,6 +4,7 @@ import pytest
 
 from tools.bootstrap_env import (
     REQUIRED_FULL_ENV_VARS,
+    bootstrap,
     configure_env_file,
     find_missing_full_env_vars,
     resolve_venv_python,
@@ -119,3 +120,58 @@ def test_resolve_venv_python_prefers_windows_layout(tmp_path: Path) -> None:
 def test_resolve_venv_python_errors_when_missing(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="Virtual environment python not found"):
         resolve_venv_python(tmp_path / ".venv")
+
+
+def test_bootstrap_upgrades_packaging_tools_before_installing_requirements(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_root_path = tmp_path
+    backend_root_path = repo_root_path / "backend"
+    venv_path = backend_root_path / ".venv"
+    venv_python = venv_path / "Scripts" / "python.exe"
+    requirements_path = backend_root_path / "requirements.txt"
+    env_path = backend_root_path / ".env"
+    example_path = backend_root_path / ".env.example"
+    call_order: list[str] = []
+
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    requirements_path.parent.mkdir(parents=True, exist_ok=True)
+    requirements_path.write_text("pytest==8.4.2\n", encoding="utf-8")
+    example_path.write_text("MINIO_UPLOAD_ENABLED=false\n", encoding="utf-8")
+
+    monkeypatch.setattr("tools.bootstrap_env.repo_root", lambda: repo_root_path)
+    monkeypatch.setattr("tools.bootstrap_env.backend_root", lambda: backend_root_path)
+    monkeypatch.setattr(
+        "tools.bootstrap_env.ensure_virtualenv",
+        lambda path: call_order.append(f"ensure:{path}"),
+    )
+    monkeypatch.setattr(
+        "tools.bootstrap_env.upgrade_packaging_tools",
+        lambda *, venv_python, cwd: call_order.append(
+            f"upgrade:{venv_python}:{cwd}"
+        ),
+    )
+    monkeypatch.setattr(
+        "tools.bootstrap_env.install_requirements",
+        lambda *, venv_python, requirements_path, cwd: call_order.append(
+            f"install:{venv_python}:{requirements_path}:{cwd}"
+        ),
+    )
+    monkeypatch.setattr(
+        "tools.bootstrap_env.configure_env_file",
+        lambda *, env_path, example_path, mode: call_order.append(
+            f"configure:{env_path}:{example_path}:{mode}"
+        ),
+    )
+
+    exit_code = bootstrap("minimal")
+
+    assert exit_code == 0
+    assert call_order == [
+        f"ensure:{venv_path}",
+        f"upgrade:{venv_python}:{repo_root_path}",
+        f"install:{venv_python}:{requirements_path}:{repo_root_path}",
+        f"configure:{env_path}:{example_path}:minimal",
+    ]

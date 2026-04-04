@@ -122,6 +122,13 @@ def ensure_virtualenv(venv_path: Path) -> None:
     run_command([sys.executable, "-m", "venv", str(venv_path)], cwd=venv_path.parent)
 
 
+def upgrade_packaging_tools(*, venv_python: Path, cwd: Path) -> None:
+    run_command(
+        [str(venv_python), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"],
+        cwd=cwd,
+    )
+
+
 def install_requirements(*, venv_python: Path, requirements_path: Path, cwd: Path) -> None:
     run_command([str(venv_python), "-m", "pip", "install", "-r", str(requirements_path)], cwd=cwd)
 
@@ -159,6 +166,7 @@ def bootstrap(mode: str) -> int:
     try:
         ensure_virtualenv(venv_path)
         venv_python = resolve_venv_python(venv_path)
+        upgrade_packaging_tools(venv_python=venv_python, cwd=root)
         install_requirements(
             venv_python=venv_python,
             requirements_path=requirements_path,
