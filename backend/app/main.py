@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.upload import router as upload_router
 from app.api.v1.chat import router as chat_router
@@ -10,6 +11,16 @@ app = FastAPI(
     title="ThinkABit File Upload API",
     version="1.0.0",
     description="Sprint 1 backend skeleton for file upload.",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(upload_router, prefix="/api/v1")

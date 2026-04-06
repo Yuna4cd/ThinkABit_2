@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-const API_ADDR = "http://127.0.0.1:5000";
-
 export default function Chatbot() {
     const [isOpen, setIsOpen] = useState(false)
     const [input, setInput] = useState("")
@@ -30,7 +28,7 @@ export default function Chatbot() {
         setIsLoading(true)
 
         try {
-            const reply = await fetch (`${API_ADDR}/api/v1/chat`, {
+            const reply = await fetch (`http://localhost:8000/api/v1/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -47,7 +45,7 @@ export default function Chatbot() {
             const data = await reply.json()
 
             if (!reply.ok) {
-                throw new Error(data.Error || "Chat Api Request Failed")
+                throw new Error(data.detail || "Chat Api Request Failed")
             }
 
             setResp((prev) => [
@@ -57,7 +55,7 @@ export default function Chatbot() {
                     text: data.reply || "No reply returned"            
                 }
             ])
-        } catch (errror) {
+        } catch (error) {
             setResp((prev) => [
                 ...prev,
                 {
@@ -72,7 +70,7 @@ export default function Chatbot() {
 
     const handelKeyDown = (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefualt();
+            event.preventDefault();
             sendInput();
         }
     }

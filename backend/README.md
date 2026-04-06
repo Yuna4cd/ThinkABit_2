@@ -25,6 +25,7 @@ uvicorn app.main:app --reload --app-dir backend
 
 - `GET /health`
 - `POST /api/v1/upload`
+- `POST /api/v1/chat`
 
 Current upload route accepts multipart request and returns contract-compatible
 response shape. Validation, storage write, and dataframe parsing are scaffolded
