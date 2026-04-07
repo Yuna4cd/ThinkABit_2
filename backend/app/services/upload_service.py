@@ -86,8 +86,7 @@ class UploadService:
         await file.seek(0)
 
         try:
-            dataframe = self._parse_to_dataframe(content=content, extension=extension)
-            dataframe = self._normalize_columns(dataframe)
+            dataframe = self.parse_dataset_bytes(content=content, extension=extension)
 
             if len(dataframe) > ROW_CAP:
                 raise self._build_error(
@@ -139,6 +138,7 @@ class UploadService:
                         size_bytes=file_size,
                         row_count=int(dataframe.shape[0]),
                         column_count=int(dataframe.shape[1]),
+                        schema_json=[column.model_dump() for column in schema],
                         storage_key_raw=object_key,
                     )
                 )
@@ -171,6 +171,32 @@ class UploadService:
             ),
             warnings=[],
         )
+
+    def parse_dataset_bytes(self, *, content: bytes, extension: str) -> pd.DataFrame:
+        dataframe = self._parse_to_dataframe(content=content, extension=extension)
+        return self._normalize_columns(dataframe)
+
+    def build_preview_rows(
+        self, *, content: bytes, extension: str, limit: int, offset: int
+    ) -> list[dict]:
+        rows = self.build_content_rows(content=content, extension=extension)
+        return rows[offset : offset + limit]
+
+    def build_content_rows(self, *, content: bytes, extension: str) -> list[dict]:
+        try:
+            dataframe = self.parse_dataset_bytes(content=content, extension=extension)
+            rows = self._serialize_rows(dataframe)
+        except APIError:
+            raise
+        except Exception as exc:
+            raise self._build_error(
+                code="PARSE_FAILED",
+                message=f"Failed to parse {extension} file.",
+                details={"reason": str(exc)[:200]},
+                status_code=422,
+            ) from exc
+
+        return rows
 
     def _parse_to_dataframe(self, content: bytes, extension: str) -> pd.DataFrame:
         if extension == "csv":
@@ -368,11 +394,14 @@ class UploadService:
 
     def _build_preview(self, dataframe: pd.DataFrame, preview_rows: int) -> list[dict]:
         preview_frame = dataframe.head(preview_rows)
+        return self._serialize_rows(preview_frame)
+
+    def _serialize_rows(self, dataframe: pd.DataFrame) -> list[dict]:
         preview: list[dict] = []
-        for _, row in preview_frame.iterrows():
+        for _, row in dataframe.iterrows():
             serialized = {
                 str(column): self._serialize_preview_value(row[column])
-                for column in preview_frame.columns
+                for column in dataframe.columns
             }
             preview.append(serialized)
         return preview
