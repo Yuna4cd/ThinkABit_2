@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -62,13 +63,28 @@ const COLORS = [
 ];
 
 export default function VisualizationPage() {
+  const location = useLocation();
+  const uploadData = location.state?.uploadData;
+
+  const initialDataset = uploadData?.preview
+    ? uploadData.preview.map((row, index) => ({ id: index + 1, ...row }))
+    : sampleData;
+
+  const columns = uploadData?.preview
+    ? Object.keys(uploadData.preview[0])
+    : ["name", "subject", "score"];
+
   const [activeStep, setActiveStep] = useState(1);
   const [activeChart, setActiveChart] = useState("Line");
-  const [dataset, setDataset] = useState(sampleData);
-  const [chartTitle, setChartTitle] = useState("Student Scores");
-  const [xAxisLabel, setXAxisLabel] = useState("Name");
-  const [yAxisLabel, setYAxisLabel] = useState("Score");
+  const [dataset, setDataset] = useState(initialDataset);
+  const [chartTitle, setChartTitle] = useState("Dataset Chart");
+  const [xAxisLabel, setXAxisLabel] = useState(columns[0] || "X");
+  const [yAxisLabel, setYAxisLabel] = useState(columns[1] || "Y");
   const [chartColor, setChartColor] = useState("#8884d8");
+
+  const hasMissing = uploadData
+    ? uploadData.missing_summary?.rows_with_missing > 0
+    : dataset.some((d) => d.score === null);
 
   const handleFillMissing = () => {
     const avg = Math.round(
@@ -132,7 +148,6 @@ export default function VisualizationPage() {
           />
           <YAxis
             label={{ value: yAxisLabel, angle: -90, position: "insideLeft" }}
-            domain={[0, 100]}
           />
           <Tooltip />
           <Legend />
@@ -154,7 +169,6 @@ export default function VisualizationPage() {
           />
           <YAxis
             label={{ value: yAxisLabel, angle: -90, position: "insideLeft" }}
-            domain={[0, 100]}
           />
           <Tooltip />
           <Legend />
@@ -189,7 +203,6 @@ export default function VisualizationPage() {
 
   const renderContent = () => {
     if (activeStep === 1) {
-      const hasMissing = dataset.some((d) => d.score === null);
       const hasOutliers = dataset.some(
         (d) => d.score !== null && (d.score > 100 || d.score < 0),
       );
@@ -199,7 +212,10 @@ export default function VisualizationPage() {
           {hasMissing && (
             <div className="alert-box">
               ⚠️ Missing values detected in{" "}
-              {dataset.filter((d) => d.score === null).length} row(s)
+              {uploadData
+                ? uploadData.missing_summary.rows_with_missing
+                : dataset.filter((d) => d.score === null).length}{" "}
+              row(s)
             </div>
           )}
           {hasOutliers && (
@@ -222,27 +238,18 @@ export default function VisualizationPage() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Name</th>
-                <th>Subject</th>
-                <th>Score</th>
+                {columns.map((col) => (
+                  <th key={col}>{col}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {dataset.map((row) => (
-                <tr
-                  key={row.id}
-                  className={
-                    row.score === null
-                      ? "missing-row"
-                      : row.score > 100 || row.score < 0
-                        ? "outlier-row"
-                        : ""
-                  }
-                >
+                <tr key={row.id}>
                   <td>{row.id}</td>
-                  <td>{row.name}</td>
-                  <td>{row.subject}</td>
-                  <td>{row.score === null ? "N/A" : row.score}</td>
+                  {columns.map((col) => (
+                    <td key={col}>{row[col] === null ? "N/A" : row[col]}</td>
+                  ))}
                 </tr>
               ))}
             </tbody>
@@ -251,8 +258,70 @@ export default function VisualizationPage() {
       );
     }
     if (activeStep === 2) {
-      const { avg, min, max, count, bySubject } = getSummaryStats();
+      if (uploadData) {
+        const { shape, schema } = uploadData;
+        const nullData = schema.map((col) => ({
+          name: col.name,
+          nullCount: col.null_count,
+        }));
 
+        return (
+          <div className="explore-data">
+            <div className="stats-grid">
+              <div className="stat-card">
+                <h3>Total Rows</h3>
+                <p>{shape.rows}</p>
+              </div>
+              <div className="stat-card">
+                <h3>Total Columns</h3>
+                <p>{shape.columns}</p>
+              </div>
+              <div className="stat-card">
+                <h3>Missing Cells</h3>
+                <p>{uploadData.missing_summary.total_missing_cells}</p>
+              </div>
+              <div className="stat-card">
+                <h3>Rows with Missing</h3>
+                <p>{uploadData.missing_summary.rows_with_missing}</p>
+              </div>
+            </div>
+            <h3>Column Overview</h3>
+            <table className="dataset-table">
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Type</th>
+                  <th>Missing Values</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schema.map((col) => (
+                  <tr
+                    key={col.name}
+                    className={col.null_count > 0 ? "missing-row" : ""}
+                  >
+                    <td>{col.name}</td>
+                    <td>{col.dtype}</td>
+                    <td>{col.null_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h3>Missing Values by Column</h3>
+            <BarChart width={500} height={250} data={nullData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="nullCount" fill="#ff6b6b" name="Missing Values" />
+            </BarChart>
+          </div>
+        );
+      }
+
+      // fallback to sample data stats
+      const { avg, min, max, count, bySubject } = getSummaryStats();
       return (
         <div className="explore-data">
           <div className="stats-grid">

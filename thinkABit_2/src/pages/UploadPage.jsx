@@ -6,30 +6,38 @@ import './UploadPage.css'
 
 
 export default function UploadPage() {
-    const navigate = useNavigate()
-    const [popup, setPopup] = useState({message:'',status:''})
-    const [uploading, setUploading] = useState(false)
+  const navigate = useNavigate();
+  const [popup, setPopup] = useState({ message: "", status: "" });
+  const [uploading, setUploading] = useState(false);
 
-    // send file to backend and receive error message
-    const handelUpload = async (file) => {
-        const formData = new FormData()
-        formData.append('file', file)
-        setUploading(true)
-        
-        try {
-            const resp = await fetch('/api/v1/upload', {
-                method:'POST',
-                body: formData
-            })
+  // send file to backend and receive error message
+  const handelUpload = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    setUploading(true);
 
-            const data = await resp.json()
-            setPopup({message:data.message, status:data.status})
-        } catch (error) {
-            setPopup ({message:'handleUpload function error', status:'501'})
-        }
+    try {
+      const resp = await fetch("/api/v1/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-        setUploading(false)
+      const data = await resp.json();
+
+      if (resp.status === 201) {
+        navigate("/visualization", { state: { uploadData: data } });
+      } else {
+        setPopup({
+          message: data.error?.message || "Upload failed",
+          status: "error",
+        });
+        setUploading(false);
+      }
+    } catch (error) {
+      setPopup({ message: "handleUpload function error", status: "501" });
+      setUploading(false);
     }
+  };
 
     return (
         <div className="upload-container">
