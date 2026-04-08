@@ -143,3 +143,32 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+
+# Added by GitGuard (Node.js, Vite, React, Python, FastAPI)
+# Local environment overrides often contain developer-specific secrets
+.env.local
+# Environment-specific local files may contain sensitive overrides
+.env.*.local
+# Development environment secrets should not be shared
+.env.development.local
+# Production secrets must never be committed to version control
+.env.production.local
+build/
+# Test environment secrets should not be committed
+.env.test.local
+# Any environment file may contain sensitive configuration
+*.env
+venv/
+env/
+ENV/
+*.so
+.ipynb_checkpoints/
+# SQLite database files may contain sensitive data
+*.sqlite3
+# Django default SQLite database should not be committed
+db.sqlite3
+*.db
+# Secrets file should never be committed
+secrets.json
+# Local settings often contain secrets and should not be committed
+local_settings.py
