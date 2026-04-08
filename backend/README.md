@@ -103,6 +103,8 @@ python backend/tools/dev.py run
 Health endpoint:
 
 - `GET /health`
+- `POST /api/v1/upload`
+- `POST /api/v1/chat`
 
 ## Running Tests
 
