@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./ChatBot.css";
 
 export default function Chatbot() {
     const [isOpen, setIsOpen] = useState(false)
@@ -89,7 +90,7 @@ export default function Chatbot() {
                 </div>
                 <div className="window-body">
                     {resp.map((msg, index) => (
-                        <div className="msg" key={index}>
+                        <div className={`msg ${msg.role === "user" ? "msg-user" : "msg-assistant"}`} key={index}>
                             {msg.text}
                         </div>
                     ))}
