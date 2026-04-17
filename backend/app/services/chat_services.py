@@ -43,9 +43,31 @@ async def rate_limit():
 
 def _generate_chat_reply_sync(message: str, history: list[dict]) -> str:
     client = _get_client()
+
+    system_prompt="""
+This website is ThinkABit Visualization, and you are the AI chatbot for assistant.
+
+Your responsiblities:
+- help users to understand how to create visualization
+- recommend suitable type of chart (e.g. pie, line, bar)
+- explain the reason after recommendation
+- suggest next steps for visualization
+- using tools if needed
+
+Behavior rules:
+- be concise, practical, and accurate
+- do not provide correct answer everytime, try to teach users how to do visualization
+- ask follow-up question if the user's message is vague.
+- Provide explaination after every sugestion.
+- keep answer simple.
+
+""".strip()
+    
+
+
     prompt = (
-        "You are a helpful AI chatbot for a website.\n\n"
-        f"{build_history(history)}\n"
+        f"{system_prompt}\n\n"
+        f"Conversation history: {build_history(history)}\n"
         f"User: {message}\n\n"
         "Assistant:"
     )
@@ -53,9 +75,6 @@ def _generate_chat_reply_sync(message: str, history: list[dict]) -> str:
     response = client.models.generate_content(
         model=GEMINI_MODEL,
         contents=prompt,
-        # config=types.GenerateContentConfig(
-        #     thinking_config=types.ThinkingConfig(thinking_level="low")
-        # ),
     )
 
     return getattr(response, "text", None) or "Nothing is generated."
