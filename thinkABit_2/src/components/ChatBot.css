@@ -9,9 +9,17 @@
 .input-window {
     display: flex;
     flex-direction: column;
-    width: min(380px, calc(100vw - 32px));
-    height: min(560px, calc(100vh - 48px));
+
+    width: 380px;
+    height: 560px;
+    min-width: 280px;
+    min-height: 360px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 48px);
+
+    resize: both;
     overflow: hidden;
+
     border: 1px solid rgba(134, 31, 65, 0.2);
     border-radius: 8px;
     background: #ffffff;
@@ -156,7 +164,11 @@
 }
 
 .chatbot-icon-btn button {
-    display: inline-flex;
+    /* display: inline-flex; */
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    
     align-items: center;
     justify-content: center;
     width: 56px;

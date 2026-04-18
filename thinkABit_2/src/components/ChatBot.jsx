@@ -15,6 +15,8 @@ export default function Chatbot() {
         respEndRef.current?.scrollIntoView({behavior: "smooth"})
     }, [resp, isOpen])
 
+
+
     const sendInput = async () => {
         const trim = input.trim()
         if (!trim || isLoading) return;
@@ -29,6 +31,9 @@ export default function Chatbot() {
         setIsLoading(true)
 
         try {
+            const datasetId = window.localStorage.getItem("dataset_id");
+            const sessionId = window.localStorage.getItem("session_id");
+
             const reply = await fetch (`http://localhost:8000/api/v1/chat`, {
                 method: "POST",
                 headers: {
@@ -39,7 +44,9 @@ export default function Chatbot() {
                     history: updatedResp.map((r) => ({
                         role: r.role,
                         text: r.text
-                    }))
+                    })),
+                    dataset_id: datasetId,
+                    session_id: sessionId,
                 })
             })
 
@@ -79,7 +86,7 @@ export default function Chatbot() {
     return (
         <div className="chatbot-container">
             { isOpen ? 
-            <div className="input-window">
+            <div className="input-window" >
                 <div className="window-header">
                     <div>
                         <strong>Gemini Chatbot</strong>
