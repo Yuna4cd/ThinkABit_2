@@ -6,7 +6,7 @@ const localStorage = (key, initialValue, fromObject) => {
         try {
             const item = window.localStorage.getItem(key)
             return item
-                ? fromObject(JSON.parse(item))
+                ? (fromObject ? fromObject(JSON.parse(item)) : JSON.parse(item))
                 : initialValue
         } catch (error) {
             console.error(error)
@@ -16,8 +16,11 @@ const localStorage = (key, initialValue, fromObject) => {
 
     const setValue = (value) => {
         try {
-            setStoredValue(value)
-            window.localStorage.setItem(key, JSON.stringify(value))
+            setStoredValue((currentValue) => {
+                const nextValue = value instanceof Function ? value(currentValue) : value
+                window.localStorage.setItem(key, JSON.stringify(nextValue))
+                return nextValue
+            })
         } catch (error) {
             console.error(error)
         }

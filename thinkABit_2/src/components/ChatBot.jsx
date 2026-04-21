@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import "./ChatBot.css";
+import localStorage from "../context/localStorage.hook";
+
+const defaultMessages = [{
+    role: "assistant",
+    text: "Hello, What can I help you?"
+}]
 
 export default function Chatbot() {
     const [isOpen, setIsOpen] = useState(false)
     const [input, setInput] = useState("")
     const [isLoading, setIsLoading] = useState(false)
-    const [resp, setResp] = useState([{
-        role: "assistant",
-        text: "Hello, What can I help you?"
-    }])
+    const [resp, setResp] = localStorage("chat_history", defaultMessages)
     const respEndRef = useRef(null)
 
     useEffect(() => {
