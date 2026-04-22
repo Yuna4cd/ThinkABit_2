@@ -71,9 +71,6 @@ export default function UploadPage() {
                     </>
                 )}
             </div>
-            <div className="upload-box" onClick={() => navigate('/visualization')}>
-                <p>Go Visualization!</p>
-            </div>
             <Chatbot />
         </div>
     )

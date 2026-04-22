@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -14,7 +14,10 @@ import {
   Legend,
   Cell,
 } from "recharts";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import "./VisualizationPage.css";
+
 
 const steps = [
   {
@@ -64,7 +67,18 @@ const COLORS = [
 
 export default function VisualizationPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const uploadData = location.state?.uploadData;
+
+  useEffect(() => {
+  if (!uploadData) {
+    navigate("/upload");
+  }
+  }, []);
+
+  if (!uploadData) return null; 
+
+  const chartRef = useRef(null);
 
   const initialDataset = uploadData?.preview
     ? uploadData.preview.map((row, index) => ({ id: index + 1, ...row }))
@@ -81,6 +95,8 @@ export default function VisualizationPage() {
   const [xAxisLabel, setXAxisLabel] = useState(columns[0] || "X");
   const [yAxisLabel, setYAxisLabel] = useState(columns[1] || "Y");
   const [chartColor, setChartColor] = useState("#8884d8");
+  const [xColumn, setXColumn] = useState(columns[0] || "");
+  const [yColumn, setYColumn] = useState(columns[1] || "");
 
   const hasMissing = uploadData
     ? uploadData.missing_summary?.rows_with_missing > 0
@@ -133,17 +149,35 @@ export default function VisualizationPage() {
     return { avg, min, max, count, bySubject };
   };
 
+  const handleExportPNG = async () => {
+    const canvas = await html2canvas(chartRef.current);
+    const link = document.createElement("a");
+    link.download = `${chartTitle}.png`;
+    link.href = canvas.toDataURL();
+    link.click();
+  };
+
+  const handleExportPDF = async () => {
+    const canvas = await html2canvas(chartRef.current);
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("landscape");
+    const width = pdf.internal.pageSize.getWidth();
+    const height = (canvas.height * width) / canvas.width;
+    pdf.addImage(imgData, "PNG", 0, 0, width, height);
+    pdf.save(`${chartTitle}.pdf`);
+  };
+
   const renderChart = () => {
     const chartData = dataset
-      .filter((d) => d.score !== null)
-      .map((d) => ({ name: d.name, score: d.score }));
+      .filter((d) => d[yColumn] !== null && d[yColumn] !== undefined)
+      .map((d) => ({ x: d[xColumn], y: Number(d[yColumn]) }));
 
     if (activeChart === "Line") {
       return (
         <LineChart width={800} height={350} data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
-            dataKey="name"
+            dataKey="x"
             label={{ value: xAxisLabel, position: "insideBottom", offset: -5 }}
           />
           <YAxis
@@ -153,7 +187,7 @@ export default function VisualizationPage() {
           <Legend />
           <Line
             type="monotone"
-            dataKey="score"
+            dataKey="y"
             stroke={chartColor}
             name={chartTitle}
           />
@@ -164,7 +198,7 @@ export default function VisualizationPage() {
         <BarChart width={800} height={350} data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
-            dataKey="name"
+            dataKey="x"
             label={{ value: xAxisLabel, position: "insideBottom", offset: -5 }}
           />
           <YAxis
@@ -172,7 +206,7 @@ export default function VisualizationPage() {
           />
           <Tooltip />
           <Legend />
-          <Bar dataKey="score" fill={chartColor} name={chartTitle} />
+          <Bar dataKey="y" fill={chartColor} name={chartTitle} />
         </BarChart>
       );
     } else if (activeChart === "Pie") {
@@ -180,8 +214,8 @@ export default function VisualizationPage() {
         <PieChart width={600} height={380}>
           <Pie
             data={chartData}
-            dataKey="score"
-            nameKey="name"
+            dataKey="y"
+            nameKey="x"
             cx="50%"
             cy="48%"
             outerRadius={120}
@@ -257,13 +291,10 @@ export default function VisualizationPage() {
         </div>
       );
     }
+
     if (activeStep === 2) {
       if (uploadData) {
         const { shape, schema } = uploadData;
-        const nullData = schema.map((col) => ({
-          name: col.name,
-          nullCount: col.null_count,
-        }));
 
         return (
           <div className="explore-data">
@@ -307,20 +338,10 @@ export default function VisualizationPage() {
                 ))}
               </tbody>
             </table>
-            <h3>Missing Values by Column</h3>
-            <BarChart width={500} height={250} data={nullData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="nullCount" fill="#ff6b6b" name="Missing Values" />
-            </BarChart>
           </div>
         );
       }
 
-      // fallback to sample data stats
       const { avg, min, max, count, bySubject } = getSummaryStats();
       return (
         <div className="explore-data">
@@ -354,13 +375,44 @@ export default function VisualizationPage() {
         </div>
       );
     }
+
     if (activeStep === 3) {
       return (
         <div className="chart-workspace">
-          <div className="export-btn-container">
-            <button>Export</button>
+          <div className="column-selectors">
+            <div className="control-group">
+              <label>X-Axis Column</label>
+              <select
+                value={xColumn}
+                onChange={(e) => {
+                  setXColumn(e.target.value);
+                  setXAxisLabel(e.target.value);
+                }}
+              >
+                {columns.map((col) => (
+                  <option key={col} value={col}>
+                    {col}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="control-group">
+              <label>Y-Axis Column</label>
+              <select
+                value={yColumn}
+                onChange={(e) => {
+                  setYColumn(e.target.value);
+                  setYAxisLabel(e.target.value);
+                }}
+              >
+                {columns.map((col) => (
+                  <option key={col} value={col}>
+                    {col}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="chart-area">{renderChart()}</div>
           <div className="chart-toggle">
             <button
               className={activeChart === "Line" ? "active-chart" : ""}
@@ -381,9 +433,11 @@ export default function VisualizationPage() {
               Pie
             </button>
           </div>
+          <div className="chart-area">{renderChart()}</div>
         </div>
       );
     }
+
     if (activeStep === 4) {
       return (
         <div className="customize-section">
@@ -449,22 +503,52 @@ export default function VisualizationPage() {
         </div>
       );
     }
+
+    if (activeStep === 5) {
+      return (
+        <div className="export-section">
+          <p>Download your chart as PNG or PDF.</p>
+          <div ref={chartRef} className="chart-area">
+            {renderChart()}
+          </div>
+          <div className="export-buttons">
+            <button onClick={handleExportPNG}>⬇ Export as PNG</button>
+            <button onClick={handleExportPDF}>⬇ Export as PDF</button>
+          </div>
+        </div>
+      );
+    }
+
     return <p className="step-content">{steps[activeStep].content}</p>;
   };
 
   return (
     <div className="viz-page-container">
       <div className="sidebar">
-        {steps.map((step, index) => (
-          <div
-            key={index}
-            className={`sidebar-item ${activeStep === index ? "active-step" : ""}`}
-            onClick={() => setActiveStep(index)}
-          >
-            {step.name}
-          </div>
-        ))}
+  {steps.map((step, index) => {
+    if (index === 0) {
+      return (
+        <div
+          key={index}
+          className="sidebar-item"
+          onClick={() => navigate("/upload")}
+        >
+          Re-upload Data
+        </div>
+      );
+    }
+    if (!uploadData) return null;
+    return (
+      <div
+        key={index}
+        className={`sidebar-item ${activeStep === index ? "active-step" : ""}`}
+        onClick={() => setActiveStep(index)}
+      >
+        {step.name}
       </div>
+    );
+  })}
+</div>
       <div className="viz-main-content">
         <h2>{steps[activeStep].name}</h2>
         {renderContent()}
