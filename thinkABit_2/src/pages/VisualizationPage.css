@@ -191,3 +191,16 @@
   cursor: pointer;
   background: none;
 }
+
+.column-selectors {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.column-selectors select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
