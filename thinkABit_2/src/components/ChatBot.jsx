@@ -11,6 +11,7 @@ export default function Chatbot() {
     const [isOpen, setIsOpen] = useState(false)
     const [input, setInput] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+    const [isConfirmingClear, setIsConfirmingClear] = useState(false)
     const [resp, setResp] = localStorage("chat_history", defaultMessages)
     const respEndRef = useRef(null)
 
@@ -18,11 +19,18 @@ export default function Chatbot() {
         respEndRef.current?.scrollIntoView({behavior: "smooth"})
     }, [resp, isOpen])
 
+    useEffect(() => {
+        if (!isOpen) {
+            setIsConfirmingClear(false)
+        }
+    }, [isOpen])
+
 
 
     const sendInput = async () => {
         const trim = input.trim()
         if (!trim || isLoading) return;
+        setIsConfirmingClear(false)
         const userInput = {
             role: "user",
             text: trim
@@ -86,6 +94,19 @@ export default function Chatbot() {
         }
     }
 
+    const handleClearHistoryClick = () => {
+        if (!isConfirmingClear) {
+            setIsConfirmingClear(true)
+            return
+        }
+
+        window.localStorage.removeItem("chat_history")
+        window.localStorage.removeItem("dataset_id");
+        window.localStorage.removeItem("session_id");
+        setResp(defaultMessages)
+        setIsConfirmingClear(false)
+    }
+
     return (
         <div className="chatbot-container">
             { isOpen ? 
@@ -94,9 +115,18 @@ export default function Chatbot() {
                     <div>
                         <strong>Gemini Chatbot</strong>
                     </div>
-                    <button className="window-close" onClick={() => {setIsOpen(false)}}>
-                        X
-                    </button>
+                    <div className="window-actions">
+                        <button
+                            className={`clear-history-btn ${isConfirmingClear ? "is-confirming" : ""}`}
+                            onClick={handleClearHistoryClick}
+                            disabled={isLoading}
+                        >
+                            {isConfirmingClear ? "Confirm Clear" : "Clear History"}
+                        </button>
+                        <button className="window-close" onClick={() => {setIsOpen(false)}}>
+                            X
+                        </button>
+                    </div>
                 </div>
                 <div className="window-body">
                     {resp.map((msg, index) => (
