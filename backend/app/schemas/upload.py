@@ -63,6 +63,21 @@ class DatasetMetadataResponse(BaseModel):
     updated_at: datetime
 
 
+class SessionDatasetInfo(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    dataset_id: str
+    name: str
+    status: DatasetStatus
+    schema_: list[ColumnSchema] = Field(alias="schema")
+    row_count: int = Field(ge=0)
+    created_at: datetime
+
+
+class SessionDatasetsResponse(BaseModel):
+    datasets: list[SessionDatasetInfo]
+
+
 class DatasetSchemaResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

@@ -44,6 +44,16 @@ class DatasetSchemaRecord:
 
 
 @dataclass
+class SessionDatasetRecord:
+    dataset_id: str
+    name: str
+    parse_status: str
+    schema_json: list[dict[str, str | int]]
+    row_count: int
+    created_at: datetime
+
+
+@dataclass
 class DatasetPreviewSourceRecord:
     dataset_id: str
     extension: str
@@ -147,6 +157,40 @@ class MetastoreService:
             created_at=row[9],
             updated_at=row[10],
         )
+
+    def list_datasets_for_session(self, session_id: str) -> list[SessionDatasetRecord]:
+        if not self.database_url:
+            raise RuntimeError("DATABASE_URL is not configured")
+
+        query = """
+            SELECT
+                dataset_id,
+                original_filename,
+                parse_status::text,
+                COALESCE(schema_json, '[]'::jsonb),
+                COALESCE(row_count, 0),
+                created_at
+            FROM public.datasets
+            WHERE session_id = %s
+            ORDER BY created_at ASC
+        """
+
+        with psycopg2.connect(self.database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query, (session_id,))
+                rows = cursor.fetchall()
+
+        return [
+            SessionDatasetRecord(
+                dataset_id=row[0],
+                name=row[1],
+                parse_status=row[2],
+                schema_json=row[3],
+                row_count=int(row[4]),
+                created_at=row[5],
+            )
+            for row in rows
+        ]
 
     def get_dataset_schema(self, dataset_id: str) -> DatasetSchemaRecord | None:
         if not self.database_url:
