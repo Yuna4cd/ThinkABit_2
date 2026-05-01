@@ -161,7 +161,53 @@ Success `200`:
 }
 ```
 
-### 5.3 GET `/api/v1/datasets/{dataset_id}/schema`
+### 5.3 GET `/api/v1/sessions/{session_id}/datasets`
+
+Returns all datasets associated with the provided anonymous session ID, sorted
+by `created_at` from oldest to newest. This endpoint is intended for frontend
+session resume flows and dataset pickers.
+
+Success `200`:
+
+```json
+{
+  "datasets": [
+    {
+      "dataset_id": "ds_01JX5F8QH9P5Y7M3S4V8N2K6TQ",
+      "name": "sales_2025.csv",
+      "status": "ready",
+      "schema": [
+        {
+          "name": "order_id",
+          "dtype": "string",
+          "null_count": 0
+        },
+        {
+          "name": "total_amount",
+          "dtype": "float",
+          "null_count": 13
+        }
+      ],
+      "row_count": 4821,
+      "created_at": "2026-02-28T18:25:43Z"
+    }
+  ]
+}
+```
+
+If the session has no datasets, the endpoint returns `200` with an empty list:
+
+```json
+{
+  "datasets": []
+}
+```
+
+Error examples:
+
+- `500` metastore/internal failure
+
+### 5.4 GET `/api/v1/datasets/{dataset_id}/schema`
 
 Returns inferred column schema and missing counts.
 
@@ -185,7 +231,7 @@ Success `200`:
 }
 ```
 
-### 5.4 GET `/api/v1/datasets/{dataset_id}/preview`
+### 5.5 GET `/api/v1/datasets/{dataset_id}/preview`
 
 Returns tabular preview rows.
 
@@ -211,7 +257,7 @@ Success `200`:
 }
 ```
 
-### 5.5 DELETE `/api/v1/datasets/{dataset_id}`
+### 5.6 DELETE `/api/v1/datasets/{dataset_id}`
 
 Deletes dataset metadata from Supabase and deletes the raw object from MinIO.
 
@@ -324,6 +370,7 @@ Storage contract is strictly S3-compatible to keep migration to AWS S3 frictionl
 | P0 | MinIO - `put_object(file_bytes, key, content_type)` | 5 |
 | P0 | Supabase - record insert | 5 |
 | P0 | Implement `GET /api/v1/datasets/{dataset_id}` | 4 |
+| P0 | Implement `GET /api/v1/sessions/{session_id}/datasets` | 4 |
 | P0 | Implement `GET /api/v1/datasets/{dataset_id}/schema` | 4 |
 | P0 | Implement `GET /api/v1/datasets/{dataset_id}/preview` | 6 |
 | P0 | Implement `DELETE /api/v1/datasets/{dataset_id}` | 6 |
@@ -335,15 +382,15 @@ Storage contract is strictly S3-compatible to keep migration to AWS S3 frictionl
 | P2 | Advanced content safety checks (zip-bomb / malicious payload patterns) | 12 |
 | P2 | Soft-delete and periodic orphan cleanup jobs | 14 |
 
-Total estimated implementation time: `96 hours`.
+Total estimated implementation time: `100 hours`.
 
 ## 11) Sprint Plan (20h each, by priority)
 
 | Sprint | Scope | Planned Hours |
 | --- | --- | ---: |
 | Sprint 2 | Supabase table init (6) + MinIO put (5) + Supabase insert (5) + `GET /datasets/{dataset_id}` (4) | 20 |
-| Sprint 3 | `GET /datasets/{dataset_id}/schema` (4) + `GET /datasets/{dataset_id}/preview` (6) + `DELETE /datasets/{dataset_id}` (6) + Supabase delete (4) | 20 |
-| Sprint 4 | MinIO delete (4) + MinIO get (4) + Integration test MinIO->Metastore (8) + stabilization buffer (4) | 20 |
+| Sprint 3 | `GET /sessions/{session_id}/datasets` (4) + `GET /datasets/{dataset_id}/schema` (4) + `GET /datasets/{dataset_id}/preview` (6) + `DELETE /datasets/{dataset_id}` (6) | 20 |
+| Sprint 4 | MinIO delete (4) + Supabase delete (4) + MinIO get (4) + Integration test MinIO->Metastore (8) | 20 |
 | Sprint 5 | Async parse pipeline (14) + Content safety checks phase 1 (6) | 20 |
 | Sprint 6 | Content safety checks phase 2 (6) + Soft-delete + orphan cleanup jobs (14) | 20 |
 
