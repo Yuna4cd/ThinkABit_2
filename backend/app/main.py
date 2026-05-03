@@ -4,7 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.upload import router as upload_router
 from app.api.v1.chat import router as chat_router
+from app.api.v1.visualization_router import router as visualization_router
 from app.errors import APIError, api_error_handler, request_validation_error_handler
+from app.api.v1.analyze import router as analyze_router
+from app.api.v1.charts import router as charts_router
 
 
 app = FastAPI(
@@ -25,6 +28,9 @@ app.add_middleware(
 
 app.include_router(upload_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(visualization_router, prefix="/api/v1")
+app.include_router(analyze_router, prefix="/api/v1")
+app.include_router(charts_router, prefix="/api/v1")
 
 app.add_exception_handler(APIError, api_error_handler)
 app.add_exception_handler(RequestValidationError, request_validation_error_handler)
