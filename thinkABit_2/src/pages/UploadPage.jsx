@@ -1,9 +1,8 @@
-import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
-import Popup from '../components/Popup'
-import Chatbot from '../components/ChatBot'
-import './UploadPage.css'
-
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import Popup from "../components/Popup";
+import Chatbot from "../components/ChatBot";
+import "./UploadPage.css";
 
 export default function UploadPage() {
   const navigate = useNavigate();
@@ -25,6 +24,19 @@ export default function UploadPage() {
       const data = await resp.json();
 
       if (resp.status === 201) {
+        // Save to localStorage
+        const existingProjects = JSON.parse(
+          localStorage.getItem("projects") || "[]",
+        );
+        const newProject = {
+          id: data.dataset_id,
+          filename: file.name,
+          uploadDate: new Date().toLocaleDateString(),
+          uploadData: data,
+        };
+        existingProjects.push(newProject);
+        localStorage.setItem("projects", JSON.stringify(existingProjects));
+
         navigate("/visualization", { state: { uploadData: data } });
       } else {
         setPopup({
@@ -39,39 +51,48 @@ export default function UploadPage() {
     }
   };
 
-    return (
-        <div className="upload-container">
-            <div className='test-btns'>
-                <button onClick={() => setPopup({message: 'upload error', status: 'error'})}>
-                    Test Error
-                </button>
-                <button onClick={() => setPopup({message: 'file warning', status: 'warning'})}>
-                    Test Warning
-                </button>
-                <button onClick={() => setPopup({message: 'upload success', status: 'success'})}>
-                    Test Success
-                </button>
-            </div>
-            <Popup message={popup.message} status={popup.status}/>
-            <div className="preview-box">
-                {!uploading ? (
-                    <>
-                    <p>Please Upload a File Below</p>
-                    <input type='file' onChange={(e) => handelUpload(e.target.files[0])}/>
-                    <button onClick={() => setUploading(true)}>
-                        Upload
-                    </button>
-                    </>
-                ) : (
-                    <>
-                        <div>System Is Processing File...</div>
-                        <button onClick={() => setUploading(false)}>
-                            Un-Upload
-                        </button>
-                    </>
-                )}
-            </div>
-            <Chatbot />
-        </div>
-    )
+  return (
+    <div className="upload-container">
+      <div className="test-btns">
+        <button
+          onClick={() => setPopup({ message: "upload error", status: "error" })}
+        >
+          Test Error
+        </button>
+        <button
+          onClick={() =>
+            setPopup({ message: "file warning", status: "warning" })
+          }
+        >
+          Test Warning
+        </button>
+        <button
+          onClick={() =>
+            setPopup({ message: "upload success", status: "success" })
+          }
+        >
+          Test Success
+        </button>
+      </div>
+      <Popup message={popup.message} status={popup.status} />
+      <div className="preview-box">
+        {!uploading ? (
+          <>
+            <p>Please Upload a File Below</p>
+            <input
+              type="file"
+              onChange={(e) => handelUpload(e.target.files[0])}
+            />
+            <button onClick={() => setUploading(true)}>Upload</button>
+          </>
+        ) : (
+          <>
+            <div>System Is Processing File...</div>
+            <button onClick={() => setUploading(false)}>Un-Upload</button>
+          </>
+        )}
+      </div>
+      <Chatbot />
+    </div>
+  );
 }
