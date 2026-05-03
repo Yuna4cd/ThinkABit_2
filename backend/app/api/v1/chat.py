@@ -15,7 +15,7 @@ async def chat(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="Request content is missing.")
     try:
-        reply = await generate_chat_reply(req.message, req.history)
+        reply = await generate_chat_reply(req.message, req.history, req.dataset_id, req.session_id)
         return ChatResponse(reply=reply)
     except RuntimeError as e:
         raise HTTPException(status_code=429, detail=str(e))

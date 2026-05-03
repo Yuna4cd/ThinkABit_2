@@ -506,6 +506,97 @@ def test_get_dataset_metastore_error_returns_metastore_error(
     assert payload["error"]["code"] == "METASTORE_ERROR"
 
 
+def test_list_session_datasets_returns_dataset_list_sorted_by_created_at(
+    client: TestClient, monkeypatch
+) -> None:
+    older = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
+    newer = datetime(2026, 1, 2, 10, 0, tzinfo=UTC)
+    mock_metastore = Mock()
+    mock_metastore.list_datasets_for_session.return_value = [
+        type(
+            "SessionDatasetRecord",
+            (),
+            {
+                "dataset_id": "ds_old",
+                "name": "old.csv",
+                "parse_status": "ready",
+                "schema_json": [
+                    {"name": "age", "dtype": "int", "null_count": 0},
+                ],
+                "row_count": 10,
+                "created_at": older,
+            },
+        )(),
+        type(
+            "SessionDatasetRecord",
+            (),
+            {
+                "dataset_id": "ds_new",
+                "name": "new.csv",
+                "parse_status": "failed",
+                "schema_json": [],
+                "row_count": 0,
+                "created_at": newer,
+            },
+        )(),
+    ]
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/sessions/sess_abc/datasets")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["datasets"] == [
+        {
+            "dataset_id": "ds_old",
+            "name": "old.csv",
+            "status": "ready",
+            "schema": [{"name": "age", "dtype": "int", "null_count": 0}],
+            "row_count": 10,
+            "created_at": older.isoformat().replace("+00:00", "Z"),
+        },
+        {
+            "dataset_id": "ds_new",
+            "name": "new.csv",
+            "status": "failed",
+            "schema": [],
+            "row_count": 0,
+            "created_at": newer.isoformat().replace("+00:00", "Z"),
+        },
+    ]
+    mock_metastore.list_datasets_for_session.assert_called_once_with("sess_abc")
+
+
+def test_list_session_datasets_empty_session_returns_empty_list(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.list_datasets_for_session.return_value = []
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/sessions/sess_empty/datasets")
+
+    assert response.status_code == 200
+    assert response.json() == {"datasets": []}
+
+
+def test_list_session_datasets_metastore_error_returns_metastore_error(
+    client: TestClient, monkeypatch
+) -> None:
+    mock_metastore = Mock()
+    mock_metastore.list_datasets_for_session.side_effect = RuntimeError(
+        "simulated session list failure"
+    )
+    monkeypatch.setattr(upload_module, "metastore_service", mock_metastore)
+
+    response = client.get("/api/v1/sessions/sess_abc/datasets")
+
+    assert response.status_code == 500
+    payload = response.json()
+    assert_error_schema(payload)
+    assert payload["error"]["code"] == "METASTORE_ERROR"
+
+
 def test_get_dataset_schema_returns_schema_payload(
     client: TestClient, monkeypatch
 ) -> None:

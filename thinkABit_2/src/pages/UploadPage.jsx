@@ -9,11 +9,28 @@ export default function UploadPage() {
   const [popup, setPopup] = useState({ message: "", status: "" });
   const [uploading, setUploading] = useState(false);
 
+//   get session_id for chatbot access
+  const getSessionId = () => {
+    let session_id = window.localStorage.getItem("session_id")
+
+    if (!session_id) {
+        session_id = crypto.randomUUID();
+        window.localStorage.setItem("session_id", session_id)
+    }
+
+    return session_id
+  }
+
   // send file to backend and receive error message
   const handelUpload = async (file) => {
+
     const formData = new FormData();
     formData.append("file", file);
     setUploading(true);
+
+    // follow-up for session id
+    const sessionId = getSessionId();
+    formData.append("session_id", sessionId)
 
     try {
       const resp = await fetch("/api/v1/upload", {
@@ -36,6 +53,11 @@ export default function UploadPage() {
         };
         existingProjects.push(newProject);
         localStorage.setItem("projects", JSON.stringify(existingProjects));
+        window.localStorage.setItem("dataset_id", data.dataset_id);
+
+        if (data.session_id) {
+            window.localStorage.setItem("session_id", data.session_id)
+        }
 
         navigate("/visualization", { state: { uploadData: data } });
       } else {
@@ -45,6 +67,7 @@ export default function UploadPage() {
         });
         setUploading(false);
       }
+
     } catch (error) {
       setPopup({ message: "handleUpload function error", status: "501" });
       setUploading(false);

@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState } from "react";
+import "./ChatBot.css";
+import localStorage from "../context/localStorage.hook";
+
+const defaultMessages = [{
+    role: "assistant",
+    text: "Hello, What can I help you?"
+}]
 
 export default function Chatbot() {
     const [isOpen, setIsOpen] = useState(false)
     const [input, setInput] = useState("")
     const [isLoading, setIsLoading] = useState(false)
-    const [resp, setResp] = useState([{
-        role: "assistant",
-        text: "Hello, What can I help you?"
-    }])
+    const [resp, setResp] = localStorage("chat_history", defaultMessages)
     const respEndRef = useRef(null)
 
     useEffect(() => {
         respEndRef.current?.scrollIntoView({behavior: "smooth"})
     }, [resp, isOpen])
+
+
 
     const sendInput = async () => {
         const trim = input.trim()
@@ -28,6 +34,9 @@ export default function Chatbot() {
         setIsLoading(true)
 
         try {
+            const datasetId = window.localStorage.getItem("dataset_id");
+            const sessionId = window.localStorage.getItem("session_id");
+
             const reply = await fetch (`http://localhost:8000/api/v1/chat`, {
                 method: "POST",
                 headers: {
@@ -38,7 +47,9 @@ export default function Chatbot() {
                     history: updatedResp.map((r) => ({
                         role: r.role,
                         text: r.text
-                    }))
+                    })),
+                    dataset_id: datasetId,
+                    session_id: sessionId,
                 })
             })
 
@@ -78,7 +89,7 @@ export default function Chatbot() {
     return (
         <div className="chatbot-container">
             { isOpen ? 
-            <div className="input-window">
+            <div className="input-window" >
                 <div className="window-header">
                     <div>
                         <strong>Gemini Chatbot</strong>
@@ -89,7 +100,7 @@ export default function Chatbot() {
                 </div>
                 <div className="window-body">
                     {resp.map((msg, index) => (
-                        <div className="msg" key={index}>
+                        <div className={`msg ${msg.role === "user" ? "msg-user" : "msg-assistant"}`} key={index}>
                             {msg.text}
                         </div>
                     ))}
