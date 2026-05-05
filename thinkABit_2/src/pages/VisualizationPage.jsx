@@ -1,29 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  Cell,
-} from "recharts";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import "./VisualizationPage.css";
-
+import Plot from "react-plotly.js";
 
 const steps = [
-  {
-    name: "Upload Data",
-    content: "Upload your CSV, Excel, or JSON file to get started.",
-  },
   {
     name: "Preview & Clean",
     content: "Handle missing values and remove outliers from your dataset.",
@@ -36,11 +18,8 @@ const steps = [
     name: "Choose Chart",
     content: "Select the best chart type for your data.",
   },
-  {
-    name: "Customize",
-    content: "Customize your chart with labels, colors, and titles.",
-  },
   { name: "Export", content: "Download your finished chart." },
+  { name: "Create New Project", content: "" },
 ];
 
 const sampleData = [
@@ -54,31 +33,21 @@ const sampleData = [
   { id: 8, name: "Henry", subject: "Science", score: 88 },
 ];
 
-const COLORS = [
-  "#0088FE",
-  "#FFBB28",
-  "#FF8042",
-  "#a855f7",
-  "#22c55e",
-  "#ef4444",
-  "#f97316",
-  "#06b6d4",
-];
-
 export default function VisualizationPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const uploadData = location.state?.uploadData;
+  const savedSettings = location.state?.settings;
 
   useEffect(() => {
-  if (!uploadData) {
-    navigate("/upload");
-  }
+    if (!uploadData) navigate("/upload");
   }, []);
 
-  if (!uploadData) return null; 
+  if (!uploadData) return null;
 
   const chartRef = useRef(null);
+  const fetchChartTimeout = useRef(null);
+  const saveTimeout = useRef(null);
 
   const initialDataset = uploadData?.preview
     ? uploadData.preview.map((row, index) => ({ id: index + 1, ...row }))
@@ -88,65 +57,205 @@ export default function VisualizationPage() {
     ? Object.keys(uploadData.preview[0])
     : ["name", "subject", "score"];
 
-  const [activeStep, setActiveStep] = useState(1);
-  const [activeChart, setActiveChart] = useState("Line");
+  const [activeStep, setActiveStep] = useState(0);
+  const [activeChart, setActiveChart] = useState(
+    savedSettings?.activeChart || "Bar",
+  );
   const [dataset, setDataset] = useState(initialDataset);
-  const [chartTitle, setChartTitle] = useState("Dataset Chart");
-  const [xAxisLabel, setXAxisLabel] = useState(columns[0] || "X");
-  const [yAxisLabel, setYAxisLabel] = useState(columns[1] || "Y");
-  const [chartColor, setChartColor] = useState("#8884d8");
-  const [xColumn, setXColumn] = useState(columns[0] || "");
-  const [yColumn, setYColumn] = useState(columns[1] || "");
+  const [chartTitle, setChartTitle] = useState(
+    savedSettings?.chartTitle || "Dataset Chart",
+  );
+  const [xAxisLabel, setXAxisLabel] = useState(
+    savedSettings?.xAxisLabel || columns[0] || "X",
+  );
+  const [yAxisLabel, setYAxisLabel] = useState(
+    savedSettings?.yAxisLabel || columns[1] || "Y",
+  );
+  const [xColumn, setXColumn] = useState(
+    savedSettings?.xColumn || columns[0] || "",
+  );
+  const [yColumn, setYColumn] = useState(
+    savedSettings?.yColumn || columns[1] || "",
+  );
+  const [summaryStats, setSummaryStats] = useState(null);
+  const [correlation, setCorrelation] = useState(null);
+  const [exploreLoading, setExploreLoading] = useState(false);
+  const [plotlyData, setPlotlyData] = useState(null);
+  const [chartLoading, setChartLoading] = useState(false);
 
-  const hasMissing = uploadData
-    ? uploadData.missing_summary?.rows_with_missing > 0
-    : dataset.some((d) => d.score === null);
+  // Debounced localStorage save
+  useEffect(() => {
+    if (!uploadData) return;
+    if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(() => {
+      const projects = JSON.parse(localStorage.getItem("projects") || "[]");
+      const updated = projects.map((p) => {
+        if (p.id === uploadData.dataset_id) {
+          return {
+            ...p,
+            uploadData: {
+              ...p.uploadData,
+              preview: dataset.map(({ id, ...rest }) => rest),
+            },
+            settings: {
+              activeChart,
+              xColumn,
+              yColumn,
+              chartTitle,
+              xAxisLabel,
+              yAxisLabel,
+            },
+          };
+        }
+        return p;
+      });
+      localStorage.setItem("projects", JSON.stringify(updated));
+    }, 1000);
+  }, [
+    dataset,
+    activeChart,
+    xColumn,
+    yColumn,
+    chartTitle,
+    xAxisLabel,
+    yAxisLabel,
+  ]);
+
+  // Fetch explore stats — only once or after cleaning
+  useEffect(() => {
+    if (activeStep !== 1 || !dataset.length) return;
+    if (summaryStats && correlation) return;
+
+    const fetchStats = async () => {
+      setExploreLoading(true);
+      const data = dataset.map(({ id, ...rest }) => rest);
+      try {
+        const [summaryRes, corrRes] = await Promise.all([
+          fetch("/api/v1/analyze/summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data }),
+          }),
+          fetch("/api/v1/analyze/correlation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data }),
+          }),
+        ]);
+        const summaryData = await summaryRes.json();
+        const corrData = await corrRes.json();
+        setSummaryStats(summaryData.summary);
+        setCorrelation(corrData);
+      } catch (err) {
+        console.error("Failed to fetch stats", err);
+      } finally {
+        setExploreLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [activeStep, summaryStats, correlation]);
+
+  // Fetch chart — debounced
+  useEffect(() => {
+    if (activeStep !== 2 && activeStep !== 3) return;
+    if (!dataset.length || !xColumn || !yColumn) return;
+    if (fetchChartTimeout.current) clearTimeout(fetchChartTimeout.current);
+
+    fetchChartTimeout.current = setTimeout(async () => {
+      setChartLoading(true);
+      try {
+        const data = dataset.map(({ id, ...rest }) => rest);
+        const res = await fetch("/api/v1/charts/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data,
+            x: xColumn,
+            y: yColumn,
+            chart_type: activeChart.toLowerCase(),
+            title: chartTitle,
+            width: 800,
+            height: 450,
+          }),
+        });
+        const json = await res.json();
+        const parsed = JSON.parse(json);
+        setPlotlyData(parsed);
+      } catch (err) {
+        console.error("Chart generation failed", err);
+      } finally {
+        setChartLoading(false);
+      }
+    }, 500);
+  }, [activeStep, activeChart, xColumn, yColumn]);
+
+  const hasMissing = dataset.some((row) =>
+    columns.some((col) => row[col] === null || row[col] === undefined),
+  );
 
   const handleFillMissing = () => {
-    const avg = Math.round(
-      dataset
-        .filter((d) => d.score !== null)
-        .reduce((sum, d) => sum + d.score, 0) /
-        dataset.filter((d) => d.score !== null).length,
+    const numericCols = columns.filter((col) =>
+      dataset.every(
+        (d) =>
+          d[col] === null || d[col] === undefined || !isNaN(Number(d[col])),
+      ),
     );
-    setDataset(
-      dataset.map((d) => (d.score === null ? { ...d, score: avg } : d)),
-    );
+    const updated = dataset.map((row) => {
+      const newRow = { ...row };
+      numericCols.forEach((col) => {
+        if (newRow[col] === null || newRow[col] === undefined) {
+          const vals = dataset.filter(
+            (d) => d[col] !== null && d[col] !== undefined,
+          );
+          const avg = Math.round(
+            vals.reduce((sum, d) => sum + Number(d[col]), 0) / vals.length,
+          );
+          newRow[col] = avg;
+        }
+      });
+      return newRow;
+    });
+    setDataset(updated);
+    setSummaryStats(null);
+    setCorrelation(null);
   };
 
   const handleRemoveMissing = () => {
-    setDataset(dataset.filter((d) => d.score !== null));
+    setDataset(
+      dataset.filter((row) =>
+        columns.every((col) => row[col] !== null && row[col] !== undefined),
+      ),
+    );
+    setSummaryStats(null);
+    setCorrelation(null);
   };
 
   const handleRemoveOutliers = () => {
-    setDataset(
-      dataset.filter((d) => d.score !== null && d.score >= 0 && d.score <= 100),
-    );
-  };
-
-  const getSummaryStats = () => {
-    const validScores = dataset
-      .filter((d) => d.score !== null)
-      .map((d) => d.score);
-    const avg = Math.round(
-      validScores.reduce((sum, s) => sum + s, 0) / validScores.length,
-    );
-    const min = Math.min(...validScores);
-    const max = Math.max(...validScores);
-    const count = validScores.length;
-
-    const bySubject = ["Math", "Science", "English"].map((subject) => ({
-      name: subject,
-      average: Math.round(
-        dataset
-          .filter((d) => d.subject === subject && d.score !== null)
-          .reduce((sum, d) => sum + d.score, 0) /
-          dataset.filter((d) => d.subject === subject && d.score !== null)
-            .length,
+    const numericCols = columns.filter((col) =>
+      dataset.every(
+        (d) =>
+          d[col] === null || d[col] === undefined || !isNaN(Number(d[col])),
       ),
-    }));
-
-    return { avg, min, max, count, bySubject };
+    );
+    setDataset(
+      dataset.filter((row) =>
+        numericCols.every((col) => {
+          const val = Number(row[col]);
+          const values = dataset
+            .filter((d) => d[col] !== null && d[col] !== undefined)
+            .map((d) => Number(d[col]));
+          const mean = values.reduce((a, b) => a + b, 0) / values.length;
+          const std = Math.sqrt(
+            values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
+              values.length,
+          );
+          return Math.abs(val - mean) <= 3 * std;
+        }),
+      ),
+    );
+    setSummaryStats(null);
+    setCorrelation(null);
   };
 
   const handleExportPNG = async () => {
@@ -167,80 +276,53 @@ export default function VisualizationPage() {
     pdf.save(`${chartTitle}.pdf`);
   };
 
-  const renderChart = () => {
-    const chartData = dataset
-      .filter((d) => d[yColumn] !== null && d[yColumn] !== undefined)
-      .map((d) => ({ x: d[xColumn], y: Number(d[yColumn]) }));
+  const handleExportCSV = () => {
+    const headers = columns.join(",");
+    const rows = dataset
+      .map(({ id, ...rest }) => columns.map((col) => rest[col] ?? "").join(","))
+      .join("\n");
+    const csv = `${headers}\n${rows}`;
+    const blob = new Blob([csv], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = `${chartTitle}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  };
 
-    if (activeChart === "Line") {
-      return (
-        <LineChart width={800} height={350} data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="x"
-            label={{ value: xAxisLabel, position: "insideBottom", offset: -5 }}
-          />
-          <YAxis
-            label={{ value: yAxisLabel, angle: -90, position: "insideLeft" }}
-          />
-          <Tooltip />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey="y"
-            stroke={chartColor}
-            name={chartTitle}
-          />
-        </LineChart>
-      );
-    } else if (activeChart === "Bar") {
-      return (
-        <BarChart width={800} height={350} data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="x"
-            label={{ value: xAxisLabel, position: "insideBottom", offset: -5 }}
-          />
-          <YAxis
-            label={{ value: yAxisLabel, angle: -90, position: "insideLeft" }}
-          />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="y" fill={chartColor} name={chartTitle} />
-        </BarChart>
-      );
-    } else if (activeChart === "Pie") {
-      return (
-        <PieChart width={600} height={380}>
-          <Pie
-            data={chartData}
-            dataKey="y"
-            nameKey="x"
-            cx="50%"
-            cy="48%"
-            outerRadius={120}
-            label
-          >
-            {chartData.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={COLORS[index % COLORS.length]}
-              />
-            ))}
-          </Pie>
-          <Tooltip />
-          <Legend verticalAlign="bottom" height={36} />
-        </PieChart>
-      );
-    }
+  const renderChart = () => {
+    if (chartLoading) return <p>Loading chart...</p>;
+    if (!plotlyData) return <p>Select columns to generate a chart.</p>;
+
+    const xValues = Array.isArray(plotlyData.data[0]?.x)
+      ? plotlyData.data[0].x
+      : [];
+
+    return (
+      <Plot
+        data={plotlyData.data}
+        layout={{
+          ...plotlyData.layout,
+          paper_bgcolor: "transparent",
+          plot_bgcolor: "transparent",
+          font: { color: "#ffffff" },
+          xaxis: {
+            ...plotlyData.layout?.xaxis,
+            type: "category",
+            tickmode: xValues.length > 0 ? "array" : "auto",
+            tickvals: xValues,
+            ticktext: xValues.map(String),
+          },
+        }}
+        config={{ responsive: true }}
+      />
+    );
   };
 
   const renderContent = () => {
-    if (activeStep === 1) {
+    if (activeStep === 0) {
       const hasOutliers = dataset.some(
         (d) => d.score !== null && (d.score > 100 || d.score < 0),
       );
-
       return (
         <div className="preview-clean">
           {hasMissing && (
@@ -292,91 +374,116 @@ export default function VisualizationPage() {
       );
     }
 
-    if (activeStep === 2) {
-      if (uploadData) {
-        const { shape, schema } = uploadData;
-
-        return (
-          <div className="explore-data">
-            <div className="stats-grid">
-              <div className="stat-card">
-                <h3>Total Rows</h3>
-                <p>{shape.rows}</p>
-              </div>
-              <div className="stat-card">
-                <h3>Total Columns</h3>
-                <p>{shape.columns}</p>
-              </div>
-              <div className="stat-card">
-                <h3>Missing Cells</h3>
-                <p>{uploadData.missing_summary.total_missing_cells}</p>
-              </div>
-              <div className="stat-card">
-                <h3>Rows with Missing</h3>
-                <p>{uploadData.missing_summary.rows_with_missing}</p>
-              </div>
-            </div>
-            <h3>Column Overview</h3>
-            <table className="dataset-table">
-              <thead>
-                <tr>
-                  <th>Column</th>
-                  <th>Type</th>
-                  <th>Missing Values</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schema.map((col) => (
-                  <tr
-                    key={col.name}
-                    className={col.null_count > 0 ? "missing-row" : ""}
-                  >
-                    <td>{col.name}</td>
-                    <td>{col.dtype}</td>
-                    <td>{col.null_count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-
-      const { avg, min, max, count, bySubject } = getSummaryStats();
+    if (activeStep === 1) {
       return (
         <div className="explore-data">
-          <div className="stats-grid">
-            <div className="stat-card">
-              <h3>Total Records</h3>
-              <p>{count}</p>
-            </div>
-            <div className="stat-card">
-              <h3>Average Score</h3>
-              <p>{avg}</p>
-            </div>
-            <div className="stat-card">
-              <h3>Min Score</h3>
-              <p>{min}</p>
-            </div>
-            <div className="stat-card">
-              <h3>Max Score</h3>
-              <p>{max}</p>
-            </div>
-          </div>
-          <h3>Average Score by Subject</h3>
-          <BarChart width={500} height={250} data={bySubject}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis domain={[0, 100]} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="average" fill="#8884d8" />
-          </BarChart>
+          {exploreLoading && <p>Loading statistics...</p>}
+          {!exploreLoading && !summaryStats && (
+            <p>No numeric data to analyze.</p>
+          )}
+          {summaryStats && (
+            <>
+              <h3>Summary Statistics</h3>
+              <table className="dataset-table">
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>Count</th>
+                    <th>Missing</th>
+                    <th>Mean</th>
+                    <th>Median</th>
+                    <th>Std</th>
+                    <th>Min</th>
+                    <th>Max</th>
+                    <th>Q1</th>
+                    <th>Q3</th>
+                    <th>Skewness</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(summaryStats).map(([col, stats]) => (
+                    <tr key={col}>
+                      <td>{col}</td>
+                      <td>{stats.count}</td>
+                      <td>{stats.missing}</td>
+                      <td>{stats.mean}</td>
+                      <td>{stats.median}</td>
+                      <td>{stats.std}</td>
+                      <td>{stats.min}</td>
+                      <td>{stats.max}</td>
+                      <td>{stats.q1}</td>
+                      <td>{stats.q3}</td>
+                      <td>{stats.skewness}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+          {correlation && correlation.columns.length >= 2 && (
+            <>
+              <h3>Correlation Matrix</h3>
+              <table className="dataset-table correlation-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    {correlation.columns.map((col) => (
+                      <th key={col}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {correlation.columns.map((col) => (
+                    <tr key={col}>
+                      <td>
+                        <strong>{col}</strong>
+                      </td>
+                      {correlation.columns.map((otherCol) => {
+                        const entry = correlation.matrix.find(
+                          (e) => e.col1 === col && e.col2 === otherCol,
+                        );
+                        const val = entry ? entry.correlation : 0;
+                        const abs = Math.abs(val);
+                        const bg =
+                          col === otherCol
+                            ? "#4f46e5"
+                            : abs > 0.7
+                              ? "#22c55e"
+                              : abs > 0.4
+                                ? "#f97316"
+                                : "#374151";
+                        return (
+                          <td
+                            key={otherCol}
+                            style={{
+                              backgroundColor: bg,
+                              color: "white",
+                              textAlign: "center",
+                            }}
+                          >
+                            {val}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="correlation-legend">
+                <span style={{ color: "#4f46e5" }}>■</span> Self &nbsp;
+                <span style={{ color: "#22c55e" }}>■</span> Strong (&gt;0.7)
+                &nbsp;
+                <span style={{ color: "#f97316" }}>■</span> Moderate (0.4–0.7)
+                &nbsp;
+                <span style={{ color: "#374151" }}>■</span> Weak (&lt;0.4)
+              </div>
+            </>
+          )}
         </div>
       );
     }
 
-    if (activeStep === 3) {
+    if (activeStep === 2) {
       return (
         <div className="chart-workspace">
           <div className="column-selectors">
@@ -412,36 +519,6 @@ export default function VisualizationPage() {
                 ))}
               </select>
             </div>
-          </div>
-          <div className="chart-toggle">
-            <button
-              className={activeChart === "Line" ? "active-chart" : ""}
-              onClick={() => setActiveChart("Line")}
-            >
-              Line
-            </button>
-            <button
-              className={activeChart === "Bar" ? "active-chart" : ""}
-              onClick={() => setActiveChart("Bar")}
-            >
-              Bar
-            </button>
-            <button
-              className={activeChart === "Pie" ? "active-chart" : ""}
-              onClick={() => setActiveChart("Pie")}
-            >
-              Pie
-            </button>
-          </div>
-          <div className="chart-area">{renderChart()}</div>
-        </div>
-      );
-    }
-
-    if (activeStep === 4) {
-      return (
-        <div className="customize-section">
-          <div className="customize-controls">
             <div className="control-group">
               <label>Chart Title</label>
               <input
@@ -451,69 +528,39 @@ export default function VisualizationPage() {
                 placeholder="Enter chart title"
               />
             </div>
-            <div className="control-group">
-              <label>X-Axis Label</label>
-              <input
-                type="text"
-                value={xAxisLabel}
-                onChange={(e) => setXAxisLabel(e.target.value)}
-                placeholder="Enter x-axis label"
-              />
-            </div>
-            <div className="control-group">
-              <label>Y-Axis Label</label>
-              <input
-                type="text"
-                value={yAxisLabel}
-                onChange={(e) => setYAxisLabel(e.target.value)}
-                placeholder="Enter y-axis label"
-              />
-            </div>
-            <div className="control-group">
-              <label>Chart Color</label>
-              <input
-                type="color"
-                value={chartColor}
-                onChange={(e) => setChartColor(e.target.value)}
-              />
-            </div>
           </div>
-          <h3>Preview</h3>
-          <div className="chart-area">{renderChart()}</div>
           <div className="chart-toggle">
-            <button
-              className={activeChart === "Line" ? "active-chart" : ""}
-              onClick={() => setActiveChart("Line")}
-            >
-              Line
-            </button>
-            <button
-              className={activeChart === "Bar" ? "active-chart" : ""}
-              onClick={() => setActiveChart("Bar")}
-            >
-              Bar
-            </button>
-            <button
-              className={activeChart === "Pie" ? "active-chart" : ""}
-              onClick={() => setActiveChart("Pie")}
-            >
-              Pie
-            </button>
+            {["Bar", "Line", "Scatter", "Pie", "Histogram", "Box"].map(
+              (type) => (
+                <button
+                  key={type}
+                  className={activeChart === type ? "active-chart" : ""}
+                  onClick={() => setActiveChart(type)}
+                >
+                  {type}
+                </button>
+              ),
+            )}
           </div>
+          <div className="chart-area">{renderChart()}</div>
         </div>
       );
     }
 
-    if (activeStep === 5) {
+    if (activeStep === 3) {
       return (
         <div className="export-section">
-          <p>Download your chart as PNG or PDF.</p>
+          <p>
+            Download your chart as PNG or PDF, or export your cleaned dataset as
+            CSV.
+          </p>
           <div ref={chartRef} className="chart-area">
             {renderChart()}
           </div>
           <div className="export-buttons">
             <button onClick={handleExportPNG}>⬇ Export as PNG</button>
             <button onClick={handleExportPDF}>⬇ Export as PDF</button>
+            <button onClick={handleExportCSV}>⬇ Export Data as CSV</button>
           </div>
         </div>
       );
@@ -525,30 +572,22 @@ export default function VisualizationPage() {
   return (
     <div className="viz-page-container">
       <div className="sidebar">
-  {steps.map((step, index) => {
-    if (index === 0) {
-      return (
-        <div
-          key={index}
-          className="sidebar-item"
-          onClick={() => navigate("/upload")}
-        >
-          Re-upload Data
-        </div>
-      );
-    }
-    if (!uploadData) return null;
-    return (
-      <div
-        key={index}
-        className={`sidebar-item ${activeStep === index ? "active-step" : ""}`}
-        onClick={() => setActiveStep(index)}
-      >
-        {step.name}
+        {steps.map((step, index) => (
+          <div
+            key={index}
+            className={`sidebar-item ${activeStep === index ? "active-step" : ""}`}
+            onClick={() => {
+              if (index === steps.length - 1) {
+                navigate("/upload");
+              } else {
+                setActiveStep(index);
+              }
+            }}
+          >
+            {step.name}
+          </div>
+        ))}
       </div>
-    );
-  })}
-</div>
       <div className="viz-main-content">
         <h2>{steps[activeStep].name}</h2>
         {renderContent()}

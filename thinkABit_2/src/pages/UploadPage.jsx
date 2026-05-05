@@ -42,6 +42,18 @@ export default function UploadPage() {
       const data = await resp.json();
 
       if (resp.status === 201) {
+        // Save to localStorage
+        const existingProjects = JSON.parse(
+          localStorage.getItem("projects") || "[]",
+        );
+        const newProject = {
+          id: data.dataset_id,
+          filename: file.name,
+          uploadDate: new Date().toLocaleDateString(),
+          uploadData: data,
+        };
+        existingProjects.push(newProject);
+        localStorage.setItem("projects", JSON.stringify(existingProjects));
         window.localStorage.setItem("dataset_id", data.dataset_id);
 
         if (data.session_id) {

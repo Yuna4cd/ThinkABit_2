@@ -25,7 +25,7 @@ the only thing that disappears on integration.
 from uuid import uuid4
 
 from app.errors import APIError
-from app.schemas.visualization import (
+from app.schemas.visualization_schemas import (
     ColorCreate,
     ColorResponse,
     PlotTypeCreate,

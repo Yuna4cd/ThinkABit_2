@@ -21,7 +21,7 @@ errors.py formats every error response in the same envelope used by /upload.
 
 from fastapi import APIRouter
 
-from app.schemas.visualization import (
+from app.schemas.visualization_schemas import (
     ColorCreate,
     ColorResponse,
     PlotTypeCreate,

@@ -13,6 +13,8 @@ from app.schemas.upload import (
     DatasetSchemaResponse,
     FileMeta,
     Shape,
+    SessionDatasetInfo,
+    SessionDatasetsResponse,
     SourceType,
     UploadResponse,
 )
@@ -137,6 +139,38 @@ def get_dataset(dataset_id: str) -> DatasetMetadataResponse:
         shape=Shape(rows=record.row_count, columns=record.column_count),
         created_at=record.created_at,
         updated_at=record.updated_at,
+    )
+
+
+@router.get(
+    "/sessions/{session_id}/datasets",
+    response_model=SessionDatasetsResponse,
+    status_code=200,
+)
+def list_session_datasets(session_id: str) -> SessionDatasetsResponse:
+    try:
+        records = metastore_service.list_datasets_for_session(session_id)
+    except Exception as exc:
+        raise APIError(
+            status_code=500,
+            code="METASTORE_ERROR",
+            message="Failed to read metadata from metastore backend.",
+            details={"reason": str(exc)[:200]},
+            request_id=f"req_{uuid4().hex[:8]}",
+        ) from exc
+
+    return SessionDatasetsResponse(
+        datasets=[
+            SessionDatasetInfo(
+                dataset_id=record.dataset_id,
+                name=record.name,
+                status=record.parse_status,
+                schema_=[ColumnSchema(**column) for column in record.schema_json],
+                row_count=record.row_count,
+                created_at=record.created_at,
+            )
+            for record in records
+        ]
     )
 
 
