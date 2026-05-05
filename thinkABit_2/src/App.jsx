@@ -5,6 +5,7 @@ import UploadPage from './pages/UploadPage'
 import VisualizationPage from './pages/VisualizationPage'
 import DocumentsPage from './pages/DocumentsPage'
 import Navbar from './components/Navbar'
+import Chatbot from './components/ChatBot'
 
 function App() {
 
@@ -17,6 +18,7 @@ function App() {
         <Route path='/documents' element={<DocumentsPage />} />
         <Route path='/visualization' element={<VisualizationPage />} />
       </Routes>
+      <Chatbot />
     </div>
   )
 }

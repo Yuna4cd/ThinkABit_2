@@ -1,8 +1,8 @@
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import Popup from "../components/Popup";
-import Chatbot from "../components/ChatBot";
-import "./UploadPage.css";
+import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import Popup from '../components/Popup'
+import './UploadPage.css'
+
 
 export default function UploadPage() {
   const navigate = useNavigate();
@@ -23,6 +23,7 @@ export default function UploadPage() {
 
   // send file to backend and receive error message
   const handelUpload = async (file) => {
+    if (!file) return;
 
     const formData = new FormData();
     formData.append("file", file);
@@ -74,48 +75,21 @@ export default function UploadPage() {
     }
   };
 
-  return (
-    <div className="upload-container">
-      <div className="test-btns">
-        <button
-          onClick={() => setPopup({ message: "upload error", status: "error" })}
-        >
-          Test Error
-        </button>
-        <button
-          onClick={() =>
-            setPopup({ message: "file warning", status: "warning" })
-          }
-        >
-          Test Warning
-        </button>
-        <button
-          onClick={() =>
-            setPopup({ message: "upload success", status: "success" })
-          }
-        >
-          Test Success
-        </button>
-      </div>
-      <Popup message={popup.message} status={popup.status} />
-      <div className="preview-box">
-        {!uploading ? (
-          <>
-            <p>Please Upload a File Below</p>
-            <input
-              type="file"
-              onChange={(e) => handelUpload(e.target.files[0])}
-            />
-            <button onClick={() => setUploading(true)}>Upload</button>
-          </>
-        ) : (
-          <>
-            <div>System Is Processing File...</div>
-            <button onClick={() => setUploading(false)}>Un-Upload</button>
-          </>
-        )}
-      </div>
-      <Chatbot />
-    </div>
-  );
+    return (
+        <div className="upload-container">
+            <Popup message={popup.message} status={popup.status}/>
+            <div className="preview-box">
+                {!uploading ? (
+                    <>
+                    <p>Please Upload a File Below</p>
+                    <input type='file' onChange={(e) => handelUpload(e.target.files[0])}/>
+                    </>
+                ) : (
+                    <>
+                        <div>System Is Processing File...</div>
+                    </>
+                )}
+            </div>
+        </div>
+    )
 }
