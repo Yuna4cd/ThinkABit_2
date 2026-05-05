@@ -172,3 +172,6 @@ db.sqlite3
 secrets.json
 # Local settings often contain secrets and should not be committed
 local_settings.py
+
+# Docker image files
+*.tar

@@ -1,0 +1,74 @@
+services:
+  frontend:
+    build:
+      context: ./thinkABit_2
+    container_name: thinkabit-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+    container_name: thinkabit-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://thinkabit_user:thinkabit_password@postgres:5432/thinkabit_db
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: thinkabit-raw
+      MINIO_SECURE: "false"
+    depends_on:
+      - postgres
+      - minio
+      - minio-init
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: thinkabit-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: thinkabit_user
+      POSTGRES_PASSWORD: thinkabit_password
+      POSTGRES_DB: thinkabit_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: thinkabit-minio
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: thinkabit-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do
+        sleep 1;
+      done;
+      mc mb --ignore-existing local/thinkabit-raw;
+      echo 'Bucket thinkabit-raw is ready.';
+      "
+    restart: "no"
+
+volumes:
+  postgres-data:
+  minio-data:

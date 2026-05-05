@@ -53,7 +53,7 @@ export default function Chatbot() {
             const datasetId = window.localStorage.getItem("dataset_id");
             const sessionId = window.localStorage.getItem("session_id");
 
-            const reply = await fetch (`http://localhost:8000/api/v1/chat`, {
+            const reply = await fetch (`/api/v1/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
