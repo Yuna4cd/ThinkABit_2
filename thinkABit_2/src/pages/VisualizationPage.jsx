@@ -175,7 +175,7 @@ export default function VisualizationPage() {
             y: yColumn,
             chart_type: activeChart.toLowerCase(),
             title: chartTitle,
-            height: 450,
+            height: 400,
           }),
         });
         const json = await res.json();

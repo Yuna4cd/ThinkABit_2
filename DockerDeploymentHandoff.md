@@ -1,26 +1,5 @@
 # Docker Deployment Handoff
 
-## Repository / Dockerfiles
-
-Repository root:
-
-```text
-D:\2026Spring\Capstone\ThinkABit_2
-```
-
-Dockerfiles:
-
-```text
-backend/Dockerfile
-thinkABit_2/Dockerfile
-```
-
-Compose file:
-
-```text
-docker-compose.yml
-```
-
 ## Local Build And Run Command
 
 The app was built and run locally with:
@@ -136,30 +115,4 @@ MinIO environment variables used by compose:
 ```text
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
-```
-
-## Image Scope
-
-Frontend image:
-
-```text
-thinkabit_2-frontend
-```
-
-Serves the built React/Vite app through Nginx.
-
-Backend image:
-
-```text
-thinkabit_2-backend
-```
-
-Runs the FastAPI backend with Uvicorn on port `8000`.
-
-Supporting images pulled from public registries:
-
-```text
-postgres:16-alpine
-minio/minio:latest
-minio/mc:latest
 ```
