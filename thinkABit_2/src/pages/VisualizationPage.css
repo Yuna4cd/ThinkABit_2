@@ -29,6 +29,7 @@
 .viz-main-content {
   flex: 1;
   padding: 20px;
+  min-width: 0;
 }
 
 .step-content {
@@ -193,16 +194,22 @@
 }
 
 .column-selectors {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
   margin-bottom: 16px;
+  max-width: 100%;
+}
+
+.column-selectors .control-group {
+  min-width: 0;
 }
 
 .column-selectors select {
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-size: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .correlation-table td {

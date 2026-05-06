@@ -175,7 +175,6 @@ export default function VisualizationPage() {
             y: yColumn,
             chart_type: activeChart.toLowerCase(),
             title: chartTitle,
-            width: 800,
             height: 450,
           }),
         });
@@ -314,6 +313,8 @@ export default function VisualizationPage() {
           },
         }}
         config={{ responsive: true }}
+        useResizeHandler={true}
+        style={{ width: "100%", height: "100%"}}
       />
     );
   };
